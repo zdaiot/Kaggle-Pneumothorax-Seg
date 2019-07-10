@@ -8,8 +8,8 @@ import random
 
 def main(config):
     cudnn.benchmark = True
-    if config.model_type not in ['U_Net','R2U_Net','AttU_Net','R2AttU_Net']:
-        print('ERROR!! model_type should be selected in U_Net/R2U_Net/AttU_Net/R2AttU_Net')
+    if config.model_type not in ['U_Net','R2U_Net','AttU_Net','R2AttU_Net', 'unet_resnet34']:
+        print('ERROR!! model_type should be selected in U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
         print('Your input for model_type was %s'%config.model_type)
         return
 
@@ -44,7 +44,6 @@ def main(config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
     
     # model hyper-parameters
     parser.add_argument('--image_size', type=int, default=224)
@@ -67,11 +66,11 @@ if __name__ == '__main__':
 
     # misc
     parser.add_argument('--mode', type=str, default='train')
-    parser.add_argument('--model_type', type=str, default='U_Net', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net')
+    parser.add_argument('--model_type', type=str, default='U_Net', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
     parser.add_argument('--model_path', type=str, default='./checkpoints')
-    parser.add_argument('--train_path', type=str, default='/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/VOC/JPEGImages')
-    parser.add_argument('--csv_path', type=str, default='/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/raw/train-rle.csv')
-    parser.add_argument('--val_path', type=str, default='/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/VOC')
+    parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
+    parser.add_argument('--csv_path', type=str, default='./datasets/SIIM_data/train-rle.csv')
+    parser.add_argument('--val_path', type=str, default='./datasets/SIIM_data//VOC')
     parser.add_argument('--result_path', type=str, default='./result/')
 
     parser.add_argument('--cuda_idx', type=int, default=1)
