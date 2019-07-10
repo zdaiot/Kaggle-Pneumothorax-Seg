@@ -3,4 +3,8 @@
 __pycache__
 checkpoints/*
 result/*
+<<<<<<< HEAD
 img
+=======
+datasets/SIIM_data/
+>>>>>>> 23e3c0ef5637429291f2f15121ad7bf6b540f120

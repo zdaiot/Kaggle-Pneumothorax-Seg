@@ -11,6 +11,7 @@ from utils.evaluation import *
 from models.network import U_Net,R2U_Net,AttU_Net,R2AttU_Net
 import csv
 import tqdm
+from backboned_unet import Unet
 
 
 class Train(object):
@@ -67,6 +68,8 @@ class Train(object):
 			self.unet = AttU_Net(img_ch=3, output_ch=self.output_ch)
 		elif self.model_type == 'R2AttU_Net':
 			self.unet = R2AttU_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
+		elif self.model_type == 'unet_resnet34':
+			self.unet = Unet(backbone_name='resnet34', classes=1)
 			
 		if torch.cuda.is_available():
 			self.unet = torch.nn.DataParallel(self.unet)
