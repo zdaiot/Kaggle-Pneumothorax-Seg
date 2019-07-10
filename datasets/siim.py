@@ -1,0 +1,194 @@
+import os
+import torch
+import numpy as np
+import pandas as pd
+import collections
+import torch
+
+from PIL import Image
+from torchvision import transforms
+from tqdm import tqdm
+from torch.utils.data import DataLoader
+from utils.mask_functions import rle2mask
+
+
+# SIIM Dataset Class
+class SIIMDataset(torch.utils.data.Dataset):
+    """从csv标注文件中抽取有标记的样本用作训练集
+    """
+    def __init__(self, df_path, img_dir, image_size):
+        """
+        :param df_path: csv文件的路径
+        :param img_dir: 训练样本图片的存放路径
+        :image_size: 模型的输入图片尺寸
+        """
+        super(SIIMDataset).__init__()
+        self.class_num = 2
+        self.df = pd.read_csv(df_path)
+        self.df = self.df[self.df[' EncodedPixels'] != ' -1']
+        self.height = 1024
+        self.width = 1024
+        self.image_dir = img_dir
+        self.image_info = collections.defaultdict(dict)
+        self.image_size = image_size
+        self.mean = (0.490, 0.490, 0.490)
+        self.std = (0.229, 0.229, 0.229)    
+
+        # 将图片ID、图片路径、标注信息存放到self.image_info中
+        counter = 0
+        for index, row in tqdm(self.df.iterrows(), total=len(self.df)):
+            image_id = row['ImageId']
+            image_path = os.path.join(self.image_dir, image_id)
+            if os.path.exists(image_path + '.jpg') and row[" EncodedPixels"].strip() != "-1":
+                self.image_info[counter]["image_id"] = image_id
+                self.image_info[counter]["image_path"] = image_path
+                self.image_info[counter]["annotations"] = row[" EncodedPixels"].strip()
+                counter += 1
+
+    def __getitem__(self, idx):
+        """得到样本与其对应的mask
+        Return:
+            img: 经过预处理的样本图片
+            mask: 值为0/1，0表示属于背景，1表示属于目标类
+        """
+        # 依据idx读取样本图片
+        img_path = self.image_info[idx]["image_path"]
+        img = Image.open(img_path + '.jpg').convert("RGB")
+        width, height = img.size
+        info = self.image_info[idx]
+
+        # 解析出mask
+        mask = rle2mask(info['annotations'], width, height)
+        mask = mask.T
+        mask = Image.fromarray(np.uint8(mask))
+
+        # 对图片和mask同时进行转换
+        img = self.image_transform(img)
+        mask = self.mask_transform(mask)
+
+        return img, mask
+
+    def image_transform(self, image):
+        """对样本进行预处理
+        """
+        resize = transforms.Resize(self.image_size)
+        to_tensor = transforms.ToTensor()
+        normalize = transforms.Normalize(self.mean, self.std)
+
+        transform_compose = transforms.Compose([resize, to_tensor, normalize])
+
+        return transform_compose(image)
+
+    def mask_transform(self, mask):
+        """对mask进行预处理
+        """
+        resize = transforms.Resize(self.image_size)
+        to_tensor = transforms.ToTensor()
+
+        transform_compose = transforms.Compose([resize, to_tensor])
+        mask = transform_compose(mask)
+        mask = torch.squeeze(mask)
+
+        return mask
+
+    def __len__(self):
+        return len(self.image_info)
+
+class SIIMDatasetVal(torch.utils.data.Dataset):
+    """验证集
+    """ 
+    def __init__(self, base_dir, image_size):
+        """
+        :param base_dir: path to val dataset directory
+        :param iamge_size: the size of model's input image
+        """
+        super().__init__()
+        self._base_dir = base_dir
+        self._image_dir = os.path.join(self._base_dir, 'sample_images')
+        self._mask_dir = os.path.join(self._base_dir, 'sample_mask')
+        self.classes_num = 2
+        self.image_size = image_size
+        self.mean = (0.490, 0.490, 0.490)
+        self.std = (0.229, 0.229, 0.229) 
+        
+        self.image_ids = os.listdir(self._image_dir)
+
+    def __len__(self):
+        return len(self.image_ids)
+
+    def __getitem__(self, index):
+        image_id = self.image_ids[index]
+        image_path = os.path.join(self._image_dir, image_id)
+        mask_path = os.path.join(self._mask_dir, image_id)
+
+        image = Image.open(image_path).convert('RGB')
+        mask = Image.open(mask_path)
+
+        image = self.image_transform(image)
+        mask = self.mask_transform(mask)
+
+        return image, mask
+
+    def image_transform(self, image):
+        """对样本进行预处理
+        """
+        resize = transforms.Resize(self.image_size)
+        to_tensor = transforms.ToTensor()
+        normalize = transforms.Normalize(self.mean, self.std)
+
+        transform_compose = transforms.Compose([resize, to_tensor, normalize])
+
+        return transform_compose(image)
+    
+    def mask_transform(self, mask):
+        """对mask进行预处理
+        """
+        resize = transforms.Resize(self.image_size)
+        to_tensor = transforms.ToTensor()
+
+        transform_compose = transforms.Compose([resize, to_tensor])
+        mask = transform_compose(mask)
+        mask = torch.squeeze(mask)
+
+        return mask
+
+def get_loader(csv_path=None, train_path=None, base_path=None, image_size=224, batch_size=2, num_workers=2):
+    """Builds and returns Dataloader."""
+    # train loader
+    dataset_train = SIIMDataset(csv_path, train_path, image_size)
+    train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
+    # val loader
+    dataset_train = SIIMDatasetVal(base_path, image_size)
+    val_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
+
+    return train_data_loader, val_data_loader
+
+
+if __name__ == "__main__":
+    csv_path = "/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/raw/train-rle.csv"
+    train_image_path = "/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/VOC/JPEGImages"
+
+    dataset_train = SIIMDataset(csv_path, train_image_path, 224)
+    print(len(dataset_train))
+
+    dataloader = DataLoader(dataset_train, batch_size=2, shuffle=True, pin_memory=True)
+
+    import cv2
+    data = iter(dataloader)
+    image, mask = next(data)
+    image = image[0]
+    image = image + mask[0].float()*255
+
+    image = image.permute(1, 2, 0).numpy()
+    cv2.imshow('win', image)
+    cv2.waitKey(0)
+
+    val_path = '/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/VOC'
+    val_dataset = SIIMDatasetVal(val_path, 224)
+    print(len(val_dataset))
+    val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=True, pin_memory=True)
+
+    val_data = iter(val_dataloader)
+    image, mask = next(val_data)
+
+    pass
