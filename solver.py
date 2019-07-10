@@ -11,7 +11,7 @@ from utils.evaluation import *
 from models.network import U_Net,R2U_Net,AttU_Net,R2AttU_Net
 import csv
 import tqdm
-from backboned_unet import Unet
+# from backboned_unet import Unet
 
 
 class Train(object):
@@ -112,7 +112,7 @@ class Train(object):
 				# GT : Ground Truth
 				images = images.to(self.device)
 				masks = masks.to(self.device)
-				
+
 				# SR : Segmentation Result
 				net_output = self.unet(images)
 				net_output_flat = net_output.view(net_output.size(0), -1)

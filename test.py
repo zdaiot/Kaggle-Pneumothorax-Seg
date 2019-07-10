@@ -93,4 +93,4 @@ if __name__ == "__main__":
     csv_path = '/home/apple/data/zdaiot/Image_Segmentation/submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     solver = Test('U_Net', 'checkpoints/U_Net/U_Net_79.pth', 224, mean, std)
-    solver.test_model(csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.8, csv_path=csv_path, test_image_path=test_image_path)

@@ -5,6 +5,7 @@ import pandas as pd
 import collections
 import torch
 
+from tqdm import tqdm
 from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
@@ -16,7 +17,7 @@ from utils.mask_functions import rle2mask
 class SIIMDataset(torch.utils.data.Dataset):
     """从csv标注文件中抽取有标记的样本用作训练集
     """
-    def __init__(self, df_path, img_dir, image_size):
+    def __init__(self, mask_dir, img_dir, image_size):
         """
         :param df_path: csv文件的路径
         :param img_dir: 训练样本图片的存放路径
@@ -24,26 +25,15 @@ class SIIMDataset(torch.utils.data.Dataset):
         """
         super(SIIMDataset).__init__()
         self.class_num = 2
-        self.df = pd.read_csv(df_path)
-        self.df = self.df[self.df[' EncodedPixels'] != ' -1']
-        self.height = 1024
-        self.width = 1024
+        self.mask_dir = mask_dir
         self.image_dir = img_dir
-        self.image_info = collections.defaultdict(dict)
         self.image_size = image_size
         self.mean = (0.490, 0.490, 0.490)
         self.std = (0.229, 0.229, 0.229)    
 
-        # 将图片ID、图片路径、标注信息存放到self.image_info中
-        counter = 0
-        for index, row in tqdm(self.df.iterrows(), total=len(self.df)):
-            image_id = row['ImageId']
-            image_path = os.path.join(self.image_dir, image_id)
-            if os.path.exists(image_path + '.jpg') and row[" EncodedPixels"].strip() != "-1":
-                self.image_info[counter]["image_id"] = image_id
-                self.image_info[counter]["image_path"] = image_path
-                self.image_info[counter]["annotations"] = row[" EncodedPixels"].strip()
-                counter += 1
+        # 所有样本和掩膜的名称
+        self.image_names = os.listdir(self.image_dir)
+        self.mask_names = os.listdir(self.mask_dir)
 
     def __getitem__(self, idx):
         """得到样本与其对应的mask
@@ -52,15 +42,13 @@ class SIIMDataset(torch.utils.data.Dataset):
             mask: 值为0/1，0表示属于背景，1表示属于目标类
         """
         # 依据idx读取样本图片
-        img_path = self.image_info[idx]["image_path"]
-        img = Image.open(img_path + '.jpg').convert("RGB")
-        width, height = img.size
-        info = self.image_info[idx]
-
-        # 解析出mask
-        mask = rle2mask(info['annotations'], width, height)
-        mask = mask.T
-        mask = Image.fromarray(np.uint8(mask))
+        image_id = self.image_names[idx]
+        img_path = os.path.join(self.image_dir, image_id)
+        img = Image.open(img_path).convert("RGB")
+        # 依据idx读取掩膜
+        mask_id = image_id.replace('jpg', 'png')
+        mask_path = os.path.join(self.mask_dir, mask_id)
+        mask = Image.open(mask_path)
 
         # 对图片和mask同时进行转换
         img = self.image_transform(img)
@@ -82,17 +70,21 @@ class SIIMDataset(torch.utils.data.Dataset):
     def mask_transform(self, mask):
         """对mask进行预处理
         """
-        resize = transforms.Resize(self.image_size)
+        mask = mask.resize((self.image_size, self.image_size))
+        # 将255转换为1， 0转换为0
+        mask = np.around(np.array(mask.convert('L'))/256.)
+
         to_tensor = transforms.ToTensor()
 
-        transform_compose = transforms.Compose([resize, to_tensor])
+        transform_compose = transforms.Compose([to_tensor])
         mask = transform_compose(mask)
         mask = torch.squeeze(mask)
 
-        return mask
+        return mask.float()
 
     def __len__(self):
-        return len(self.image_info)
+        return len(self.image_names)
+
 
 class SIIMDatasetVal(torch.utils.data.Dataset):
     """验证集
@@ -119,8 +111,10 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
     def __getitem__(self, index):
         image_id = self.image_ids[index]
         image_path = os.path.join(self._image_dir, image_id)
-        mask_path = os.path.join(self._mask_dir, image_id)
 
+        mask_id = image_id.replace('jpg', 'png')
+        mask_path = os.path.join(self._mask_dir, mask_id)
+ 
         image = Image.open(image_path).convert('RGB')
         mask = Image.open(mask_path)
 
@@ -143,19 +137,22 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
     def mask_transform(self, mask):
         """对mask进行预处理
         """
-        resize = transforms.Resize(self.image_size)
+        mask = mask.resize((self.image_size, self.image_size))
+        # 将255转换为1， 0转换为0
+        mask = np.around(np.array(mask.convert('L'))/256.)
+
         to_tensor = transforms.ToTensor()
 
-        transform_compose = transforms.Compose([resize, to_tensor])
+        transform_compose = transforms.Compose([to_tensor])
         mask = transform_compose(mask)
         mask = torch.squeeze(mask)
 
-        return mask
+        return mask.float()
 
-def get_loader(csv_path=None, train_path=None, base_path=None, image_size=224, batch_size=2, num_workers=2):
+def get_loader(mask_path=None, train_path=None, base_path=None, image_size=224, batch_size=2, num_workers=2):
     """Builds and returns Dataloader."""
     # train loader
-    dataset_train = SIIMDataset(csv_path, train_path, image_size)
+    dataset_train = SIIMDataset(mask_path, train_path, image_size)
     train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
     # val loader
     dataset_train = SIIMDatasetVal(base_path, image_size)
@@ -165,25 +162,41 @@ def get_loader(csv_path=None, train_path=None, base_path=None, image_size=224, b
 
 
 if __name__ == "__main__":
-    csv_path = "/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/raw/train-rle.csv"
-    train_image_path = "/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/VOC/JPEGImages"
+    mask_path = "datasets/SIIM_data/train_mask"
+    image_path = "datasets/SIIM_data/train_images"
+    batch_size = 30
 
-    dataset_train = SIIMDataset(csv_path, train_image_path, 224)
+    dataset_train = SIIMDataset(mask_path, image_path, 224)
     print(len(dataset_train))
 
-    dataloader = DataLoader(dataset_train, batch_size=2, shuffle=True, pin_memory=True)
+    dataloader = DataLoader(dataset_train, batch_size=batch_size, num_workers=32, shuffle=True, pin_memory=True)
 
     import cv2
     data = iter(dataloader)
-    image, mask = next(data)
-    image = image[0]
-    image = image + mask[0].float()*255
+    tbar = tqdm(data)
+    error_mask_count = 0
+    for index, (images, masks) in enumerate(tbar):
+        for i in range(images.size(0)):
+            image = images[i]
+            mask_max = torch.max(masks[i])
+            mask_min = torch.min(masks[i])
 
-    image = image.permute(1, 2, 0).numpy()
-    cv2.imshow('win', image)
-    cv2.waitKey(0)
+            descript = 'Mask_max %d, Mask_min %d'%(mask_max, mask_min)
+            tbar.set_description(descript)
+            if mask_max != 1 and mask_max != 0:
+                error_mask_count += 1
 
-    val_path = '/home/apple/data/MXQ/competition/kaggle/Pneumothorax Segmentation/VOC'
+            mask = masks[i].float()*255
+            image = image + mask
+
+            image = image.permute(1, 2, 0).numpy()
+            cv2.imshow('win', image)
+            cv2.waitKey(10)
+
+    if error_mask_count != 0:
+        print("There exits wrong mask...")
+
+    val_path = 'datasets/SIIM_data'
     val_dataset = SIIMDatasetVal(val_path, 224)
     print(len(val_dataset))
     val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=True, pin_memory=True)

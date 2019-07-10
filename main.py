@@ -33,7 +33,7 @@ def main(config):
 
     print(config)
         
-    train_loader, val_loader = get_loader(config.csv_path, config.train_path, config.val_path, config.image_size, config.batch_size, config.num_workers)
+    train_loader, val_loader = get_loader(config.mask_path, config.train_path, config.val_path, config.image_size, config.batch_size, config.num_workers)
 
     solver = Train(config, train_loader, valid_loader=val_loader, test_loader=None)
 
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', type=str, default='U_Net', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
     parser.add_argument('--model_path', type=str, default='./checkpoints')
     parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
-    parser.add_argument('--csv_path', type=str, default='./datasets/SIIM_data/train-rle.csv')
+    parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask')
     parser.add_argument('--val_path', type=str, default='./datasets/SIIM_data')
     parser.add_argument('--result_path', type=str, default='./result/')
 
