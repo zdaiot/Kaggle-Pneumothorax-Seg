@@ -3,6 +3,7 @@ import os
 import numpy as np
 from tqdm import tqdm
 from PIL import Image
+import matplotlib.pyplot as plt
 from torchvision import transforms
 import cv2
 from backboned_unet import Unet
@@ -13,7 +14,7 @@ from models.network import U_Net
 def detect(model, image_path, input_size=224, threshold=0.6, cuda=True):
         model.eval()
         image = Image.open(image_path).convert('RGB')
-        image_raw = np.array(image)
+        image_raw = image.resize((input_size, input_size))
 
         resize = transforms.Resize(input_size)(image)
         to_tensor = transforms.ToTensor()(resize)
@@ -30,13 +31,26 @@ def detect(model, image_path, input_size=224, threshold=0.6, cuda=True):
         pred = np.where(pred>threshold, 1, 0)[0]
         pred = np.reshape(pred, (input_size, input_size)).astype(np.int8)*255.
 
-        cv2.imshow(image_path.split('/')[-1].split('.')[-2], pred)
-        cv2.waitKey(0)
-        pass
+        return image_raw, pred
 
 
+def combine_display(image_raw, mask, pred, title_diplay):
+    plt.suptitle(title_diplay)
+    plt.subplot(1, 3, 1)
+    plt.title('image_raw')
+    plt.imshow(image_raw)
 
-def demo(model_name, checkpoint_path, images_path, input_size=224, threshold=0.25, cuda=True):
+    plt.subplot(1, 3, 2)
+    plt.title('mask')
+    plt.imshow(mask)
+
+    plt.subplot(1, 3, 3)
+    plt.title('pred')
+    plt.imshow(pred)
+
+    plt.show()
+
+def demo(model_name, checkpoint_path, images_path, masks_path, input_size=224, threshold=0.25, cuda=True):
     if model_name == 'U_Net':
         model = U_Net(img_ch=3, output_ch=1)
     elif model_name == 'unet_resnet34':
@@ -54,14 +68,21 @@ def demo(model_name, checkpoint_path, images_path, input_size=224, threshold=0.2
     images = os.listdir(images_path)
     for image in images:
         image_path = os.path.join(images_path, image)
-        detect(model, image_path, input_size, threshold, cuda)
+        image_raw, pred_mask = detect(model, image_path, input_size, threshold, cuda)
+
+        mask_path = os.path.join(masks_path, image.replace('jpg', 'jpg'))
+        mask = Image.open(mask_path).resize((input_size, input_size))
+
+        combine_display(image_raw, mask, pred_mask, 'Result Show')
 
 
 if __name__ == "__main__":
-    images_floder = 'img/image'
-    model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_79.pth')
+    base_dir = 'img'
+    images_folder = os.path.join(base_dir, 'image')
+    masks_folder = os.path.join(base_dir, 'mask')
+    model_name = 'U_Net'
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_149.pth')
 
-    demo(model_name, checkpoint_path, images_floder)
+    demo(model_name, checkpoint_path, images_folder, masks_folder)
 
     

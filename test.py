@@ -97,5 +97,5 @@ if __name__ == "__main__":
     std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    solver = Test('unet_resnet34', 'checkpoints/unet_resnet34/unet_resnet34_79.pth', 224, mean, std)
+    solver = Test('U_Net', 'checkpoints/U_Net/U_Net_149.pth', 224, mean, std)
     solver.test_model(threshold=0.8, csv_path=csv_path, test_image_path=test_image_path)
