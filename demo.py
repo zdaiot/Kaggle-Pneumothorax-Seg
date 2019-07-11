@@ -63,7 +63,7 @@ def demo(model_name, checkpoint_path, images_path, masks_path, input_size=224, t
     
     # 加载权重
     checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint.state_dict())
+    model.load_state_dict(checkpoint)
 
     images = os.listdir(images_path)
     for image in images:

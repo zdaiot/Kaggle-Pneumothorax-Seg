@@ -50,7 +50,7 @@ class Test(object):
         """
         """
         self.build_model()
-        self.unet.load_state_dict(torch.load(self.unet_path).state_dict())
+        self.unet.load_state_dict(torch.load(self.unet_path))
 
         self.unet.train(False)
         self.unet.eval()
@@ -98,5 +98,7 @@ if __name__ == "__main__":
     std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    solver = Test('U_Net', 'checkpoints/U_Net/U_Net_149.pth', 224, mean, std)
-    solver.test_model(threshold=0.8, csv_path=csv_path, test_image_path=test_image_path)
+    model_name = 'unet_resnet34'
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_79.pth')
+    solver = Test(model_name, checkpoint_path, 224, mean, std)
+    solver.test_model(threshold=0.47, csv_path=csv_path, test_image_path=test_image_path)

@@ -41,13 +41,13 @@ class Train(object):
         self.batch_size = config.batch_size
 
         # Step size
-        self.log_step = config.log_step
-        self.val_step = config.val_step
+        self.save_step = config.save_step
 
         # Path
         self.model_path = config.model_path
         self.result_path = config.result_path
         self.mode = config.mode
+        self.resume = config.resume
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_type = config.model_type
@@ -93,14 +93,14 @@ class Train(object):
         self.unet.zero_grad()
 
     def train(self):
-        """Train encoder, generator and discriminator."""
-        weight_path = os.path.join(self.model_path, '%s-%d-%.4f-%d-%.4f.pth' % (
-        self.model_type, self.num_epochs, self.lr, self.num_epochs_decay, self.augmentation_prob))
-
-        # U-Net Train
-        if os.path.isfile(weight_path):
+        if self.resume and os.path.isfile(weight_path):
+            """Train encoder, generator and discriminator."""
+            weight_path = os.path.join(self.model_path, self.model_type, self.resume)
             # Load the pretrained Encoder
-            self.unet.load_state_dict(torch.load(weight_path))
+            if torch.cuda.is_available:
+                self.unet.module.load_state_dict(torch.load(weight_path))
+            else:
+                self.unet.load_state_dict(torch.load(weight_path))
             print('%s is Successfully Loaded from %s' % (self.model_type, weight_path))
 
         # Train for Encoder
@@ -134,12 +134,13 @@ class Train(object):
 
             self.validation()
 
-            pth_path = os.path.join(self.model_path, self.model_type, '%s_%d.pth' % (self.model_type, epoch))
-            print('Saving Model.')
-            if torch.cuda.is_available():
-                torch.save(self.unet.module, pth_path)
-            else:
-                torch.save(self.unet, pth_path)
+            if (epoch+1)%self.save_step == 0:
+                pth_path = os.path.join(self.model_path, self.model_type, '%s_%d.pth' % (self.model_type, epoch))
+                print('Saving Model.')
+                if torch.cuda.is_available():
+                    torch.save(self.unet.module.state_dict, pth_path)
+                else:
+                    torch.save(self.unet.state_dict, pth_path)
 
             # Decay learning rate
             if (epoch + 1) > (self.num_epochs - self.num_epochs_decay):
@@ -184,7 +185,7 @@ class Train(object):
         return (2. * intersect / union)
 
     def choose_threshold(self, model_path, noise_th=75.0 * (256 / 128.0) ** 2):
-        self.unet.module.load_state_dict(torch.load(model_path).state_dict())
+        self.unet.module.load_state_dict(torch.load(model_path))
         self.unet.train(False)
         self.unet.eval()
         tbar = tqdm.tqdm(self.train_loader)
