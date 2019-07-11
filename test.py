@@ -92,6 +92,7 @@ class Test(object):
 
         return transform_compose(image)
 
+
 if __name__ == "__main__":
     mean = (0.490, 0.490, 0.490)
     std = (0.229, 0.229, 0.229)
