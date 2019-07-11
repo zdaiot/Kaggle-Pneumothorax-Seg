@@ -5,7 +5,7 @@ from tqdm import tqdm
 from PIL import Image
 from torchvision import transforms
 import cv2
-
+from backboned_unet import Unet
 import torch
 from models.network import U_Net
 
@@ -39,8 +39,10 @@ def detect(model, image_path, input_size=224, threshold=0.6, cuda=True):
 def demo(model_name, checkpoint_path, images_path, input_size=224, threshold=0.25, cuda=True):
     if model_name == 'U_Net':
         model = U_Net(img_ch=3, output_ch=1)
+    elif model_name == 'unet_resnet34':
+        model = Unet(backbone_name='resnet34', classes=1)
     else:
-        raise ValueError('The model should be one of [Unet ]')
+        raise ValueError('The model should be one of [Unet/unet_resnet34]')
     
     if cuda:
         model.cuda()
@@ -57,8 +59,9 @@ def demo(model_name, checkpoint_path, images_path, input_size=224, threshold=0.2
 
 if __name__ == "__main__":
     images_floder = 'img/image'
-    checkpoint_path = 'checkpoints/U_Net/U_Net_79.pth'
+    model_name = 'unet_resnet34'
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_79.pth')
 
-    demo('U_Net', checkpoint_path, images_floder)
+    demo(model_name, checkpoint_path, images_floder)
 
     

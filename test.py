@@ -14,6 +14,7 @@ from utils.mask_functions import rle2mask, mask2rle, mask_to_rle
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
 from torchvision import transforms
+from backboned_unet import Unet
 
 class Test(object):
     def __init__(self, model_type, weight_path, image_size, mean, std, t=None):
@@ -39,6 +40,8 @@ class Test(object):
             self.unet = AttU_Net(img_ch=3, output_ch=1)
         elif self.model_type == 'R2AttU_Net':
             self.unet = R2AttU_Net(img_ch=3, output_ch=1, t=self.t)
+        elif self.model_type == 'unet_resnet34':
+            self.unet = Unet(backbone_name='resnet34', classes=1)
         print('build model done！')
 
         self.unet.to(self.device)
@@ -53,6 +56,7 @@ class Test(object):
         self.unet.eval()
         rle = []
         sample_df = pd.read_csv(csv_path)
+        count_has_mask = 0
         # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             file = row['ImageId']
@@ -71,8 +75,9 @@ class Test(object):
             if encoding == ' ':
                 rle.append([file.strip(), '-1'])
             else:
+                count_has_mask += 1
                 rle.append([file.strip(), encoding[1:]])
-
+        print('The number of masked pictures predicted:',count_has_mask)
         submission_df = pd.DataFrame(rle, columns=['ImageId','EncodedPixels'])
         submission_df.to_csv('submission.csv', index=False)
     
@@ -90,7 +95,7 @@ class Test(object):
 if __name__ == "__main__":
     mean = (0.490, 0.490, 0.490)
     std = (0.229, 0.229, 0.229)
-    csv_path = '/home/apple/data/zdaiot/Image_Segmentation/submission.csv' 
+    csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    solver = Test('U_Net', 'checkpoints/U_Net/U_Net_79.pth', 224, mean, std)
+    solver = Test('unet_resnet34', 'checkpoints/unet_resnet34/unet_resnet34_79.pth', 224, mean, std)
     solver.test_model(threshold=0.8, csv_path=csv_path, test_image_path=test_image_path)
