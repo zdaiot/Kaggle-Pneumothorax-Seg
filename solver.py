@@ -205,7 +205,7 @@ class Train(object):
         best_thrs_ = thrs[dices.argmax()]
         # 精细选取范围
         dices = []
-        thrs = np.arange(best_thrs_-0.1, best_thrs_+0.1, 0.01)  # 阈值列表
+        thrs = np.arange(best_thrs_-0.05, best_thrs_+0.05, 0.01)  # 阈值列表
         for th in thrs:
             tmp = []
             for i, (images, masks) in enumerate(tbar):
