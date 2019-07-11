@@ -1,11 +1,13 @@
 import pydicom
 import os
 import glob
+import sys
+sys.path.append('..')
 from matplotlib import cm
 from matplotlib import pyplot as plt
 from scipy import misc
 import pandas as pd
-from mask_functions import rle2mask
+from utils.mask_functions import rle2mask
 import numpy as np
 import matplotlib.image as mpimg
 
@@ -99,7 +101,8 @@ def dcm2jpg(dcm_path, save_jpg_path, csv_path=None, save_mask_path=None, show_in
                     if type(df.loc[file_path.split('/')[-1][:-4],1]) == str:
                         print('one mask')
                         mask = rle2mask(df.loc[file_path.split('/')[-1][:-4],1], 1024, 1024).T
-                    # 'more than one mask'
+                        mask = np.where(mask>0, 255, 0)
+                    # more than one mask
                     else:
                         print('more than one mask')
                         mask = np.zeros((1024, 1024))
@@ -110,21 +113,21 @@ def dcm2jpg(dcm_path, save_jpg_path, csv_path=None, save_mask_path=None, show_in
                 misc.imsave(os.path.join(save_jpg_path, file_path.split('/')[-1][:-4]+'.jpg'), dataset.pixel_array)
                 misc.imsave(os.path.join(save_mask_path, file_path.split('/')[-1][:-4]+'.png'), mask)   
             except KeyError:
-                print("Key" + file_path.split('/')[-1][:-4] + "without mask")
+                print("Key" + file_path.split('/')[-1][:-4] + ",without mask")
                 count_no_mask += 1
     print('count_no_mask:',count_no_mask)
 
 def run(): 
-    # dcm_path = './input/sample images/*.dcm'
-    # save_jpg_path = './input/sample_images'
-    # csv_path = './input/sample images/train-rle-sample.csv'
-    # save_mask_path = './input/sample_mask'
-    # dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
+    dcm_path = '../../input/sample images/*.dcm'
+    save_jpg_path = '../../input/sample_images'
+    csv_path = '../../input/sample images/train-rle-sample.csv'
+    save_mask_path = '../../input/sample_mask'
+    dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
 
-    dcm_path = './dicom-images-train/*/*/*.dcm'
-    save_jpg_path = './train_images'
-    csv_path = './train-rle.csv'
-    save_mask_path = './train_mask'
+    dcm_path = '../../input/dicom-images-train/*/*/*.dcm'
+    save_jpg_path = '../../input/train_images'
+    csv_path = '../../input/train-rle.csv'
+    save_mask_path = '../../input/train_mask'
     dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
 
     '''there are four pic no be masked, handed del please
