@@ -93,15 +93,18 @@ class Train(object):
         self.unet.zero_grad()
 
     def train(self):
-        if self.resume and os.path.isfile(weight_path):
-            """Train encoder, generator and discriminator."""
+        if self.resume:
             weight_path = os.path.join(self.model_path, self.model_type, self.resume)
-            # Load the pretrained Encoder
-            if torch.cuda.is_available:
-                self.unet.module.load_state_dict(torch.load(weight_path))
+            if os.path.isfile(weight_path):
+                """Train encoder, generator and discriminator."""
+                # Load the pretrained Encoder
+                if torch.cuda.is_available:
+                    self.unet.module.load_state_dict(torch.load(weight_path))
+                else:
+                    self.unet.load_state_dict(torch.load(weight_path))
+                print('%s is Successfully Loaded from %s' % (self.model_type, weight_path))
             else:
-                self.unet.load_state_dict(torch.load(weight_path))
-            print('%s is Successfully Loaded from %s' % (self.model_type, weight_path))
+                raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
 
         # Train for Encoder
         lr = self.lr
@@ -138,9 +141,9 @@ class Train(object):
                 pth_path = os.path.join(self.model_path, self.model_type, '%s_%d.pth' % (self.model_type, epoch))
                 print('Saving Model.')
                 if torch.cuda.is_available():
-                    torch.save(self.unet.module.state_dict, pth_path)
+                    torch.save(self.unet.module.state_dict(), pth_path)
                 else:
-                    torch.save(self.unet.state_dict, pth_path)
+                    torch.save(self.unet.state_dict(), pth_path)
 
             # Decay learning rate
             if (epoch + 1) > (self.num_epochs - self.num_epochs_decay):
