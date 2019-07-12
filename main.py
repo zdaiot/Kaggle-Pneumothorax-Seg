@@ -49,7 +49,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # model hyper-parameters
-    parser.add_argument('--image_size', type=int, default=224)
+    parser.add_argument('--image_size', type=int, default=512)
     parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
 
     # training hyper-parameters
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_step', type=int, default=10)
     parser.add_argument('--resume', type=str, default='')
     # misc
-    parser.add_argument('--mode', type=str, default='choose_threshold')
+    parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--model_type', type=str, default='unet_resnet34',
                         help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
     parser.add_argument('--model_path', type=str, default='./checkpoints')

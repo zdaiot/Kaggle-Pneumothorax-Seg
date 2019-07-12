@@ -28,8 +28,10 @@ class SIIMDataset(torch.utils.data.Dataset):
         self.mask_dir = mask_dir
         self.image_dir = img_dir
         self.image_size = image_size
-        self.mean = (0.490, 0.490, 0.490)
-        self.std = (0.229, 0.229, 0.229)    
+        # self.mean = (0.490, 0.490, 0.490)
+        # self.std = (0.229, 0.229, 0.229)
+        self.mean = (0.485, 0.456, 0.406)
+        self.std = (0.229, 0.224, 0.225)    
 
         # 所有样本和掩膜的名称
         self.image_names = os.listdir(self.image_dir)

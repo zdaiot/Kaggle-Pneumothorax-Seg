@@ -69,7 +69,7 @@ class Train(object):
         elif self.model_type == 'R2AttU_Net':
             self.unet = R2AttU_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
         elif self.model_type == 'unet_resnet34':
-            self.unet = Unet(backbone_name='resnet34', pretrained=False, classes=1)
+            self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=1)
 
         if torch.cuda.is_available():
             self.unet = torch.nn.DataParallel(self.unet)
