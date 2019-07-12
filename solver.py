@@ -69,7 +69,7 @@ class Train(object):
         elif self.model_type == 'R2AttU_Net':
             self.unet = R2AttU_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
         elif self.model_type == 'unet_resnet34':
-            self.unet = Unet(backbone_name='resnet34', classes=1)
+            self.unet = Unet(backbone_name='resnet34', pretrained=False, classes=1)
 
         if torch.cuda.is_available():
             self.unet = torch.nn.DataParallel(self.unet)
@@ -191,12 +191,12 @@ class Train(object):
         self.unet.module.load_state_dict(torch.load(model_path))
         self.unet.train(False)
         self.unet.eval()
-        tbar = tqdm.tqdm(self.train_loader)
         # 先大概选取范围
         dices = []
         thrs = np.arange(0.1, 1, 0.1)  # 阈值列表
         for th in thrs:
             tmp = []
+            tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
@@ -212,6 +212,7 @@ class Train(object):
         thrs = np.arange(best_thrs_-0.05, best_thrs_+0.05, 0.01)  # 阈值列表
         for th in thrs:
             tmp = []
+            tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)

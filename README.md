@@ -13,8 +13,8 @@ conda install -c conda-forge imgaug
 conda install albumentations -c albumentations
 ```
 
-## dataset
-for example
+## Dataset
+Creat dataset soft links in the following directories.
 ```
 ln -s ../../../input/train_images/ train_images
 ln -s ../../../input/train_mask/ train_mask
@@ -23,3 +23,10 @@ ln -s ../../../input/sample_mask sample_mask
 ln -s ../../../input/sample_images/ sample_images
 ln -s ../../../input/train-rle.csv train-rle.csv
 ```
+
+## Results
+|backbone|batch_size|image_size|pretrained|data proprecess|lr|score|
+|--|--|--|--|--|--|--|
+|U-Net|32|224|w/o|w/o|random|0.7019|
+|ResNet34|32|224|w/|w/o|random|0.7172|
+|ResNet34|32|224|w/o|w/o|random|0.7295|

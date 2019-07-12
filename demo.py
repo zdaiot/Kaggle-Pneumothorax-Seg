@@ -80,8 +80,8 @@ if __name__ == "__main__":
     base_dir = 'img'
     images_folder = os.path.join(base_dir, 'image')
     masks_folder = os.path.join(base_dir, 'mask')
-    model_name = 'U_Net'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_149.pth')
+    model_name = 'unet_resnet34'
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_199.pth')
 
     demo(model_name, checkpoint_path, images_folder, masks_folder)
 

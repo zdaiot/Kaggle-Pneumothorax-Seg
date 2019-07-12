@@ -42,7 +42,7 @@ def main(config):
     if config.mode == 'train':
         solver.train()
     elif config.mode == 'choose_threshold':
-        solver.choose_threshold('checkpoints/unet_resnet34/unet_resnet34_79.pth')
+        solver.choose_threshold('checkpoints/unet_resnet34/unet_resnet34_199.pth')
 
 
 if __name__ == '__main__':
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_step', type=int, default=10)
     parser.add_argument('--resume', type=str, default='')
     # misc
-    parser.add_argument('--mode', type=str, default='train')
+    parser.add_argument('--mode', type=str, default='choose_threshold')
     parser.add_argument('--model_type', type=str, default='unet_resnet34',
                         help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
     parser.add_argument('--model_path', type=str, default='./checkpoints')

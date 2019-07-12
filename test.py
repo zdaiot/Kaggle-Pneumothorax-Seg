@@ -99,6 +99,6 @@ if __name__ == "__main__":
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_79.pth')
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_199.pth')
     solver = Test(model_name, checkpoint_path, 224, mean, std)
-    solver.test_model(threshold=0.47, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.48, csv_path=csv_path, test_image_path=test_image_path)
