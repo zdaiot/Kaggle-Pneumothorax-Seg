@@ -4,5 +4,5 @@ __pycache__
 checkpoints/*
 result/*
 img
-datasets/SIIM_data/
+datasets/SIIM_data/*
 submission.csv
