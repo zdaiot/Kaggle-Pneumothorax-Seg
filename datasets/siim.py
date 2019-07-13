@@ -31,7 +31,7 @@ class SIIMDataset(torch.utils.data.Dataset):
         self.image_dir = img_dir
         self.image_size = image_size
         # 是否使用数据增强
-        self.augmentation_flag = True
+        self.augmentation_flag = False
         # self.mean = (0.490, 0.490, 0.490)
         # self.std = (0.229, 0.229, 0.229)
         self.mean = (0.485, 0.456, 0.406)
@@ -82,7 +82,7 @@ class SIIMDataset(torch.utils.data.Dataset):
         mask = mask.resize((self.image_size, self.image_size))
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
-
+        mask = mask[:, :, np.newaxis]
         to_tensor = transforms.ToTensor()
 
         transform_compose = transforms.Compose([to_tensor])
@@ -168,7 +168,7 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
         mask = mask.resize((self.image_size, self.image_size))
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
-
+        mask = mask[:, :, np.newaxis]
         to_tensor = transforms.ToTensor()
 
         transform_compose = transforms.Compose([to_tensor])

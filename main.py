@@ -77,7 +77,7 @@ if __name__ == '__main__':
         # 当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=32, help='batch size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=16, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=3, help='How many epoch freezes the encoder layer in the first stage')
 
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         
         # model set
         parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file')
-        parser.add_argument('--mode', type=str, default='choose_threshold', help='train/choose_threshold')
+        parser.add_argument('--mode', type=str, default='train', help='train/choose_threshold')
         parser.add_argument('--model_type', type=str, default='unet_resnet34',
                             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
 
