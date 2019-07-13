@@ -40,6 +40,7 @@ def visualize(image, mask, original_image=None, original_mask=None):
 
 def data_augmentation(original_image, original_mask):
     """进行样本和掩膜的随机增强
+    
     Args:
         original_image: 原始图片
         original_mask: 原始掩膜

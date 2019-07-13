@@ -94,11 +94,11 @@ class Test(object):
 
 
 if __name__ == "__main__":
-    mean = (0.490, 0.490, 0.490)
-    std = (0.229, 0.229, 0.229)
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_199.pth')
-    solver = Test(model_name, checkpoint_path, 224, mean, std)
-    solver.test_model(threshold=0.48, csv_path=csv_path, test_image_path=test_image_path)
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_129.pth')
+    solver = Test(model_name, checkpoint_path, 512, mean, std)
+    solver.test_model(threshold=0.52, csv_path=csv_path, test_image_path=test_image_path)

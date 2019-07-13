@@ -11,6 +11,7 @@ from torchvision import transforms
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from utils.mask_functions import rle2mask
+from utils.data_augmentation import data_augmentation
 
 
 # SIIM Dataset Class
@@ -19,15 +20,18 @@ class SIIMDataset(torch.utils.data.Dataset):
     """
     def __init__(self, mask_dir, img_dir, image_size):
         """
-        :param df_path: csv文件的路径
-        :param img_dir: 训练样本图片的存放路径
-        :image_size: 模型的输入图片尺寸
+        Args:
+            param df_path: csv文件的路径
+            img_dir: 训练样本图片的存放路径
+            image_size: 模型的输入图片尺寸
         """
         super(SIIMDataset).__init__()
         self.class_num = 2
         self.mask_dir = mask_dir
         self.image_dir = img_dir
         self.image_size = image_size
+        # 是否使用数据增强
+        self.augmentation_flag = True
         # self.mean = (0.490, 0.490, 0.490)
         # self.std = (0.229, 0.229, 0.229)
         self.mean = (0.485, 0.456, 0.406)
@@ -51,6 +55,9 @@ class SIIMDataset(torch.utils.data.Dataset):
         mask_id = image_id.replace('jpg', 'png')
         mask_path = os.path.join(self.mask_dir, mask_id)
         mask = Image.open(mask_path)
+
+        if self.augmentation_flag:
+            img, mask = self.augmentation(img, mask)
 
         # 对图片和mask同时进行转换
         img = self.image_transform(img)
@@ -83,6 +90,25 @@ class SIIMDataset(torch.utils.data.Dataset):
         mask = torch.squeeze(mask)
 
         return mask.float()
+    
+    def augmentation(self, image, mask):
+        """进行数据增强
+        Args:
+            image: 原始图像，Image图像
+            mask: 原始掩膜，Image图像
+        Return:
+            image_aug: 增强后的图像，Image图像
+            mask: 增强后的掩膜，Image图像
+        """
+        image = np.asarray(image)
+        mask = np.asarray(mask)
+
+        image_aug, mask_aug = data_augmentation(image, mask)
+
+        image_aug = Image.fromarray(image_aug)
+        mask_aug = Image.fromarray(mask_aug)
+
+        return image_aug, mask_aug
 
     def __len__(self):
         return len(self.image_names)
@@ -168,7 +194,7 @@ if __name__ == "__main__":
     image_path = "datasets/SIIM_data/train_images"
     batch_size = 30
 
-    dataset_train = SIIMDataset(mask_path, image_path, 224)
+    dataset_train = SIIMDataset(mask_path, image_path, 512)
     print(len(dataset_train))
 
     dataloader = DataLoader(dataset_train, batch_size=batch_size, num_workers=32, shuffle=True, pin_memory=True)
@@ -193,7 +219,7 @@ if __name__ == "__main__":
 
             image = image.permute(1, 2, 0).numpy()
             cv2.imshow('win', image)
-            cv2.waitKey(10)
+            cv2.waitKey(1000)
 
     if error_mask_count != 0:
         print("There exits wrong mask...")
