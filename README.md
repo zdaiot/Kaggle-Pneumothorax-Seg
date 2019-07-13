@@ -30,5 +30,5 @@ ln -s ../../../input/train-rle.csv train-rle.csv
 |U-Net|32|224|w/o|w/o|random|0.7019|
 |ResNet34|32|224|w/|w/o|random|0.7172|
 |ResNet34|32|224|w/o|w/o|random|0.7295|
-|ResNet34|?|512|w/|w/o|random|0.7508|
-|ResNet34|?|512|w/|w/|random|0.7603|
+|ResNet34|20|512|w/|w/o|random|0.7508|
+|ResNet34|20|512|w/|w/|random|0.7603|
