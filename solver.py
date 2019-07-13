@@ -7,16 +7,16 @@ import torchvision
 from torch import optim
 from torch.autograd import Variable
 import torch.nn.functional as F
-from utils.evaluation import *
+from utils.mask_functions import write_txt
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
 import csv
+import matplotlib.pyplot as plt
 import tqdm
 from backboned_unet import Unet
 
 
 class Train(object):
     def __init__(self, config, train_loader, valid_loader, test_loader):
-
         # Data loader
         self.train_loader = train_loader
         self.valid_loader = valid_loader
@@ -28,35 +28,33 @@ class Train(object):
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
         self.criterion = torch.nn.BCEWithLogitsLoss()
-        self.augmentation_prob = config.augmentation_prob
+        self.model_type = config.model_type
+        self.t = config.t
+
+        self.mode = config.mode
+        self.resume = config.resume
+        self.num_epochs_decay = config.num_epochs_decay
 
         # Hyper-parameters
+        self.augmentation_prob = config.augmentation_prob
         self.lr = config.lr
         self.beta1 = config.beta1
         self.beta2 = config.beta2
 
-        # Training settings
-        self.num_epochs = config.num_epochs
-        self.num_epochs_decay = config.num_epochs_decay
-        self.batch_size = config.batch_size
-
-        # Step size
+        # save set
         self.save_step = config.save_step
+        self.save_path = config.save_path
 
-        # Path
-        self.model_path = config.model_path
-        self.result_path = config.result_path
-        self.mode = config.mode
-        self.resume = config.resume
+        # 配置参数
+        self.two_stage = config.two_stage
+        self.epoch_stage1 = config.epoch_stage1
+        self.epoch_stage1_freeze = config.epoch_stage1_freeze
+        self.epoch_stage2 = config.epoch_stage2
+        self.epoch_stage2_accumulation = config.epoch_stage2_accumulation
 
+        # 模型初始化
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model_type = config.model_type
-        self.t = config.t
         self.build_model()
-
-        if not os.path.exists(os.path.join(self.model_path, self.model_type)):
-            print('Making pth folder...')
-            os.mkdir(os.path.join(self.model_path, self.model_type))
 
     def build_model(self):
         """Build generator and discriminator."""
@@ -69,7 +67,7 @@ class Train(object):
         elif self.model_type == 'R2AttU_Net':
             self.unet = R2AttU_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
         elif self.model_type == 'unet_resnet34':
-            self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=1)
+            self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
 
         if torch.cuda.is_available():
             self.unet = torch.nn.DataParallel(self.unet)
@@ -92,24 +90,41 @@ class Train(object):
         """Zero the gradient buffers."""
         self.unet.zero_grad()
 
+    def freeze_encoder(self, epoch):
+        for param in self.unet.module.backbone.parameters():
+            param.requires_grad = False
+        print('Stage1 epoch:{} freeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage1 epoch:{} freeze encoder'.format(epoch))
+
+    def unfreeze_encoder(self, epoch):
+        for param in self.unet.module.backbone.parameters():
+            param.requires_grad = True
+        print('Stage1 epoch:{} unfreeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage1 epoch:{} unfreeze encoder'.format(epoch))
+
     def train(self):
         if self.resume:
-            weight_path = os.path.join(self.model_path, self.model_type, self.resume)
+            weight_path = os.path.join(self.save_path, self.resume)
             if os.path.isfile(weight_path):
-                """Train encoder, generator and discriminator."""
                 # Load the pretrained Encoder
                 if torch.cuda.is_available:
                     self.unet.module.load_state_dict(torch.load(weight_path))
                 else:
                     self.unet.load_state_dict(torch.load(weight_path))
-                print('%s is Successfully Loaded from %s' % (self.model_type, weight_path))
+                print('Stage1 %s is Successfully Loaded from %s' % (self.model_type, weight_path))
+                write_txt(self.save_path, 'Stage1 %s is Successfully Loaded from %s' % (self.model_type, weight_path))
             else:
                 raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
 
         # Train for Encoder
         lr = self.lr
-        for epoch in range(self.num_epochs):
+        for epoch in range(self.epoch_stage1):
+            epoch += 1
             self.unet.train(True)
+            if epoch < self.epoch_stage1_freeze:
+                self.freeze_encoder(epoch)
+            else:
+                self.unfreeze_encoder(epoch)
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
@@ -133,28 +148,100 @@ class Train(object):
                 tbar.set_description(desc=descript)
 
             # Print the log info
-            print('Epoch [%d/%d], Loss: %.5f' % (epoch + 1, self.num_epochs, epoch_loss))
+            print('Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss))
+            write_txt(self.save_path, 'Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss))
 
             self.validation()
 
-            if (epoch+1)%self.save_step == 0:
-                pth_path = os.path.join(self.model_path, self.model_type, '%s_%d.pth' % (self.model_type, epoch))
+            if epoch % self.save_step == 0:
+                pth_path = os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, epoch))
                 print('Saving Model.')
+                write_txt(self.save_path, 'Saving Model.')
                 if torch.cuda.is_available():
                     torch.save(self.unet.module.state_dict(), pth_path)
                 else:
                     torch.save(self.unet.state_dict(), pth_path)
 
             # Decay learning rate
-            if (epoch + 1) > (self.num_epochs - self.num_epochs_decay):
+            if epoch > (self.epoch_stage1 + self.epoch_stage2 - self.num_epochs_decay):
                 lr -= (self.lr / float(self.num_epochs_decay))
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = lr
                 print('Decay learning rate to lr: {}.'.format(lr))
+                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(lr))
+        # 重新调整对象的lr，为train_stage2做准备
+        self.lr = lr 
+
+    def train_stage2(self):
+        weight_path = os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, self.epoch_stage1))
+        if os.path.isfile(weight_path):
+            # Load the pretrained Encoder
+            if torch.cuda.is_available:
+                self.unet.module.load_state_dict(torch.load(weight_path))
+            else:
+                self.unet.load_state_dict(torch.load(weight_path))
+            print('Stage2: %s is Successfully Loaded from %s' % (self.model_type, weight_path))
+            write_txt(self.save_path, 'Stage2: %s is Successfully Loaded from %s' % (self.model_type, weight_path))
+        else:
+            raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
+
+        # Train for Encoder
+        lr = self.lr
+        for epoch in range(self.epoch_stage2):
+            epoch += 1
+            self.unet.train(True)
+            epoch_loss = 0
+            tbar = tqdm.tqdm(self.train_loader)
+            for i, (images, masks) in enumerate(tbar):
+                # GT : Ground Truth
+                images = images.to(self.device)
+                masks = masks.to(self.device)
+
+                # SR : Segmentation Result
+                net_output = self.unet(images)
+                net_output_flat = net_output.view(net_output.size(0), -1)
+                masks_flat = masks.view(masks.size(0), -1)
+                loss = self.criterion(net_output_flat, masks_flat)
+                epoch_loss += loss.item()
+
+                # Backprop + optimize
+                if epoch <= self.epoch_stage2 - self.epoch_stage2_accumulation:
+                    print('Stage2 epoch:{} reset grad'.format(epoch))
+                    write_txt(self.save_path, 'Stage2 epoch:{} reset grad'.format(epoch))
+                    self.reset_grad()
+                else:
+                    print('Stage2 epoch:{} accumulation grad'.format(epoch))
+                    write_txt(self.save_path, 'Stage2 epoch:{} accumulation grad'.format(epoch))
+                loss.backward()
+                self.optimizer.step()
+
+                descript = "Train Loss: %.5f" % (epoch_loss / (i + 1))
+                tbar.set_description(desc=descript)
+
+            # Print the log info
+            print('Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss))
+            write_txt(self.save_path, 'Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss))
+
+            self.validation()
+
+            if epoch % self.save_step == 0:
+                pth_path = os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, epoch+self.epoch_stage1))
+                print('Saving Model.')
+                write_txt(self.save_path, 'Saving Model.')
+                if torch.cuda.is_available():
+                    torch.save(self.unet.module.state_dict(), pth_path)
+                else:
+                    torch.save(self.unet.state_dict(), pth_path)
+
+            # Decay learning rate
+            if (self.epoch_stage1 + epoch) > (self.epoch_stage1 + self.epoch_stage2 - self.num_epochs_decay):
+                lr -= (self.lr / float(self.num_epochs_decay))
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = lr
+                print('Decay learning rate to lr: {}.'.format(lr))
+                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(lr))
 
     def validation(self):
-        print('Start Validatate:')
-
         tbar = tqdm.tqdm(self.valid_loader)
         loss_sum = 0
         for i, (images, masks) in enumerate(tbar):
@@ -171,6 +258,7 @@ class Train(object):
             tbar.set_description(desc=descript)
 
         print('Val Loss: %.5f' % (loss_sum))
+        write_txt(self.save_path, 'Val Loss: %.5f' % (loss_sum))
 
     # dice for threshold selection
     def dice_overall(self, preds, targs):
@@ -189,12 +277,13 @@ class Train(object):
 
     def choose_threshold(self, model_path, noise_th=75.0 * (256 / 128.0) ** 2):
         self.unet.module.load_state_dict(torch.load(model_path))
+        print('Loaded from %s' % model_path)
         self.unet.train(False)
         self.unet.eval()
         # 先大概选取范围
-        dices = []
-        thrs = np.arange(0.1, 1, 0.1)  # 阈值列表
-        for th in thrs:
+        dices_ = []
+        thrs_ = np.arange(0.1, 1, 0.1)  # 阈值列表
+        for th in thrs_:
             tmp = []
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
@@ -204,9 +293,9 @@ class Train(object):
                 preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
                 # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                 tmp.append(self.dice_overall(preds, masks).mean())
-            dices.append(sum(tmp) / len(tmp))
-        dices = np.array(dices)
-        best_thrs_ = thrs[dices.argmax()]
+            dices_.append(sum(tmp) / len(tmp))
+        dices_ = np.array(dices_)
+        best_thrs_ = thrs_[dices_.argmax()]
         # 精细选取范围
         dices = []
         thrs = np.arange(best_thrs_-0.05, best_thrs_+0.05, 0.01)  # 阈值列表
@@ -224,4 +313,12 @@ class Train(object):
         dices = np.array(dices)
         best_thrs = thrs[dices.argmax()]
         print('best_thrs:', best_thrs)
+
+        plt.subplot(1, 2, 1)
+        plt.title('Large-scale search')
+        plt.plot(thrs_, dices_)
+        plt.subplot(1, 2, 2)
+        plt.title('Little-scale search')
+        plt.plot(thrs, dices)
+        plt.show()
         return best_thrs

@@ -1,5 +1,15 @@
 import numpy as np
+from pprint import pprint
+import os
 
+def write_txt(path, content):
+    f = open(os.path.join(path, 'log.txt'), 'a')
+    if isinstance(content, dict) or isinstance(content, list):
+        pprint(content, f)
+    else:
+        f.write(content + '\n')
+    f.flush()
+    f.close()
 
 def mask2rle(img, width, height):
     rle = []
