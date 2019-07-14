@@ -18,7 +18,7 @@ from utils.data_augmentation import data_augmentation
 class SIIMDataset(torch.utils.data.Dataset):
     """从csv标注文件中抽取有标记的样本用作训练集
     """
-    def __init__(self, mask_dir, img_dir, image_size):
+    def __init__(self, mask_dir, img_dir, image_size, augmentation_flag):
         """
         Args:
             param df_path: csv文件的路径
@@ -31,7 +31,7 @@ class SIIMDataset(torch.utils.data.Dataset):
         self.image_dir = img_dir
         self.image_size = image_size
         # 是否使用数据增强
-        self.augmentation_flag = False
+        self.augmentation_flag = augmentation_flag
         # self.mean = (0.490, 0.490, 0.490)
         # self.std = (0.229, 0.229, 0.229)
         self.mean = (0.485, 0.456, 0.406)
@@ -82,7 +82,7 @@ class SIIMDataset(torch.utils.data.Dataset):
         mask = mask.resize((self.image_size, self.image_size))
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
-        mask = mask[:, :, np.newaxis]
+        # mask = mask[:, :, np.newaxis] # Wrong, will convert range
         to_tensor = transforms.ToTensor()
 
         transform_compose = transforms.Compose([to_tensor])
@@ -117,7 +117,7 @@ class SIIMDataset(torch.utils.data.Dataset):
 class SIIMDatasetVal(torch.utils.data.Dataset):
     """验证集
     """ 
-    def __init__(self, base_dir, image_size):
+    def __init__(self, base_dir, image_size, augmentation_flag):
         """
         :param base_dir: path to val dataset directory
         :param iamge_size: the size of model's input image
@@ -128,6 +128,7 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
         self._mask_dir = os.path.join(self._base_dir, 'sample_mask')
         self.classes_num = 2
         self.image_size = image_size
+        self.augmentation_flag = augmentation_flag
         self.mean = (0.490, 0.490, 0.490)
         self.std = (0.229, 0.229, 0.229) 
         
@@ -168,7 +169,7 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
         mask = mask.resize((self.image_size, self.image_size))
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
-        mask = mask[:, :, np.newaxis]
+        # mask = mask[:, :, np.newaxis]
         to_tensor = transforms.ToTensor()
 
         transform_compose = transforms.Compose([to_tensor])
@@ -177,13 +178,13 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
 
         return mask.float()
 
-def get_loader(mask_path=None, train_path=None, base_path=None, image_size=224, batch_size=2, num_workers=2):
+def get_loader(mask_path=None, train_path=None, base_path=None, image_size=224, batch_size=2, num_workers=2, augmentation_flag=False):
     """Builds and returns Dataloader."""
     # train loader
-    dataset_train = SIIMDataset(mask_path, train_path, image_size)
+    dataset_train = SIIMDataset(mask_path, train_path, image_size, augmentation_flag)
     train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
     # val loader
-    dataset_train = SIIMDatasetVal(base_path, image_size)
+    dataset_train = SIIMDatasetVal(base_path, image_size, augmentation_flag)
     val_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
 
     return train_data_loader, val_data_loader
@@ -192,9 +193,9 @@ def get_loader(mask_path=None, train_path=None, base_path=None, image_size=224, 
 if __name__ == "__main__":
     mask_path = "datasets/SIIM_data/train_mask"
     image_path = "datasets/SIIM_data/train_images"
-    batch_size = 30
+    batch_size = 16
 
-    dataset_train = SIIMDataset(mask_path, image_path, 512)
+    dataset_train = SIIMDataset(mask_path, image_path, 512, False)
     print(len(dataset_train))
 
     dataloader = DataLoader(dataset_train, batch_size=batch_size, num_workers=32, shuffle=True, pin_memory=True)
@@ -225,7 +226,7 @@ if __name__ == "__main__":
         print("There exits wrong mask...")
 
     val_path = 'datasets/SIIM_data'
-    val_dataset = SIIMDatasetVal(val_path, 224)
+    val_dataset = SIIMDatasetVal(val_path, 224, False)
     print(len(val_dataset))
     val_dataloader = DataLoader(val_dataset, batch_size=2, shuffle=True, pin_memory=True)
 

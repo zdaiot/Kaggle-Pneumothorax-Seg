@@ -75,7 +75,7 @@ class Train(object):
         self.unet.to(self.device)
 
         self.optimizer = optim.Adam(list(self.unet.parameters()),
-                                    self.lr, [self.beta1, self.beta2])
+                                    self.lr, [self.beta1, self.beta2]) # TODO
 
     def print_network(self, model, name):
         """Print out the network information."""
@@ -148,8 +148,8 @@ class Train(object):
                 tbar.set_description(desc=descript)
 
             # Print the log info
-            print('Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss))
-            write_txt(self.save_path, 'Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss))
+            print('Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
 
             self.validation()
 
@@ -196,6 +196,8 @@ class Train(object):
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                assert images.size(2) == 1024
+                assert images.size() == masks.size()
 
                 # SR : Segmentation Result
                 net_output = self.unet(images)
@@ -219,8 +221,8 @@ class Train(object):
                 tbar.set_description(desc=descript)
 
             # Print the log info
-            print('Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss))
-            write_txt(self.save_path, 'Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss))
+            print('Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
 
             self.validation()
 
@@ -242,6 +244,7 @@ class Train(object):
                 write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(lr))
 
     def validation(self):
+        self.unet.train(False)
         tbar = tqdm.tqdm(self.valid_loader)
         loss_sum = 0
         for i, (images, masks) in enumerate(tbar):
@@ -257,8 +260,8 @@ class Train(object):
             descript = "Val Loss: %.5f" % (loss_sum / (i + 1))
             tbar.set_description(desc=descript)
 
-        print('Val Loss: %.5f' % (loss_sum))
-        write_txt(self.save_path, 'Val Loss: %.5f' % (loss_sum))
+        print('Val Loss: %.5f' % (loss_sum/len(tbar)))
+        write_txt(self.save_path, 'Val Loss: %.5f' % (loss_sum/len(tbar)))
 
     # dice for threshold selection
     def dice_overall(self, preds, targs):

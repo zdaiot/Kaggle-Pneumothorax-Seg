@@ -40,7 +40,7 @@ def main(config):
 
     # 对于第一个阶段方法的处理
     train_loader, val_loader = get_loader(config.mask_path, config.train_path, config.val_path, config.image_size_stage1,
-                                    config.batch_size_stage1, config.num_workers)
+                                    config.batch_size_stage1, config.num_workers, config.augmentation_flag)
     solver = Train(config, train_loader, valid_loader=val_loader, test_loader=None)
     if config.mode == 'choose_threshold':
         if config.two_stage == False:
@@ -54,7 +54,7 @@ def main(config):
     if config.two_stage == True:
         del train_loader, val_loader
         train_loader_, val_loader_ = get_loader(config.mask_path, config.train_path, config.val_path, config.image_size_stage2,
-                                    config.batch_size_stage2, config.num_workers)
+                                    config.batch_size_stage2, config.num_workers, config.augmentation_flag)
         # 更新类的训练集以及验证集
         solver.train_loader, solver.val_loader = train_loader_, val_loader_
         if config.mode == 'train':
@@ -85,9 +85,11 @@ if __name__ == '__main__':
         parser.add_argument('--batch_size_stage2', type=int, default=2, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=10, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=3, help='How many epoch gradients accumulate in the second stage')
+
+        parser.add_argument('--augmentation_flag', type=bool, default=False, help='if true, use augmentation method')
         
         # model set
-        parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file')
+        parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file. Only work for first stage')
         parser.add_argument('--mode', type=str, default='train', help='train/choose_threshold')
         parser.add_argument('--model_type', type=str, default='unet_resnet34',
                             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')

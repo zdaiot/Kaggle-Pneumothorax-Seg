@@ -53,7 +53,6 @@ class Test(object):
         self.unet.load_state_dict(torch.load(self.unet_path))
 
         self.unet.train(False)
-        self.unet.eval()
         rle = []
         sample_df = pd.read_csv(csv_path)
         count_has_mask = 0
@@ -99,6 +98,6 @@ if __name__ == "__main__":
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_129.pth')
-    solver = Test(model_name, checkpoint_path, 512, mean, std)
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_50.pth')
+    solver = Test(model_name, checkpoint_path, 1024, mean, std)
     solver.test_model(threshold=0.52, csv_path=csv_path, test_image_path=test_image_path)
