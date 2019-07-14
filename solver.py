@@ -206,12 +206,12 @@ class Train(object):
 
                 # Backprop + optimize
                 if epoch <= self.epoch_stage2 - self.epoch_stage2_accumulation:
-                    print('Stage2 epoch:{} reset grad'.format(epoch))
-                    write_txt(self.save_path, 'Stage2 epoch:{} reset grad'.format(epoch))
+                    # print('Stage2 epoch:{} reset grad'.format(epoch))
+                    # write_txt(self.save_path, 'Stage2 epoch:{} reset grad'.format(epoch))
                     self.reset_grad()
-                else:
-                    print('Stage2 epoch:{} accumulation grad'.format(epoch))
-                    write_txt(self.save_path, 'Stage2 epoch:{} accumulation grad'.format(epoch))
+                # else:
+                #     print('Stage2 epoch:{} accumulation grad'.format(epoch))
+                #     write_txt(self.save_path, 'Stage2 epoch:{} accumulation grad'.format(epoch))
                 loss.backward()
                 self.optimizer.step()
 
