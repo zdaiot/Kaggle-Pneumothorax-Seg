@@ -197,7 +197,6 @@ class Train(object):
                 images = images.to(self.device)
                 masks = masks.to(self.device)
                 assert images.size(2) == 1024
-                assert images.size() == masks.size()
 
                 # SR : Segmentation Result
                 net_output = self.unet(images)

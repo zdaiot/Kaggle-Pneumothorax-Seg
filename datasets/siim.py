@@ -83,6 +83,7 @@ class SIIMDataset(torch.utils.data.Dataset):
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
         # mask = mask[:, :, np.newaxis] # Wrong, will convert range
+        mask = np.reshape(mask, (np.shape(mask)[0],np.shape(mask)[1],1)).astype("float32")
         to_tensor = transforms.ToTensor()
 
         transform_compose = transforms.Compose([to_tensor])
@@ -169,7 +170,7 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
         mask = mask.resize((self.image_size, self.image_size))
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
-        # mask = mask[:, :, np.newaxis]
+        mask = np.reshape(mask, (np.shape(mask)[0],np.shape(mask)[1],1)).astype("float32")
         to_tensor = transforms.ToTensor()
 
         transform_compose = transforms.Compose([to_tensor])
@@ -219,8 +220,8 @@ if __name__ == "__main__":
             image = image + mask
 
             image = image.permute(1, 2, 0).numpy()
-            cv2.imshow('win', image)
-            cv2.waitKey(1000)
+            # cv2.imshow('win', image)
+            # cv2.waitKey(1000)
 
     if error_mask_count != 0:
         print("There exits wrong mask...")

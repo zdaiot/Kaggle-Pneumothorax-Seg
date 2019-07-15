@@ -13,6 +13,16 @@ conda install -c conda-forge imgaug
 conda install albumentations -c albumentations
 ```
 
+## TODO
+- [x] unet_resnet34
+- [x] data augmentation
+- [x] two stage set: two stage batch size and two stages epoch
+- [x] epoch freezes the encoder layer in the first stage
+- [x] epoch gradients accumulate in the second stage
+- [x] adapt to torchvison0.2.0
+- [ ] cross validation
+- [ ] leak
+
 ## Dataset
 Creat dataset soft links in the following directories.
 ```
