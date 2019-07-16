@@ -85,6 +85,7 @@ if __name__ == '__main__':
         parser.add_argument('--batch_size_stage2', type=int, default=2, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=50, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=15, help='How many epoch gradients accumulate in the second stage')
+        parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
         parser.add_argument('--augmentation_flag', type=bool, default=False, help='if true, use augmentation method')
         
