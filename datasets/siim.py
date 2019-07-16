@@ -82,14 +82,14 @@ class SIIMDataset(torch.utils.data.Dataset):
         mask = mask.resize((self.image_size, self.image_size))
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
-        # mask = mask[:, :, np.newaxis] # Wrong, will convert range
-        mask = np.reshape(mask, (np.shape(mask)[0],np.shape(mask)[1],1)).astype("float32")
-        to_tensor = transforms.ToTensor()
+        # # mask = mask[:, :, np.newaxis] # Wrong, will convert range
+        # mask = np.reshape(mask, (np.shape(mask)[0],np.shape(mask)[1],1)).astype("float32")
+        # to_tensor = transforms.ToTensor()
 
-        transform_compose = transforms.Compose([to_tensor])
-        mask = transform_compose(mask)
-        mask = torch.squeeze(mask)
-
+        # transform_compose = transforms.Compose([to_tensor])
+        # mask = transform_compose(mask)
+        # mask = torch.squeeze(mask)
+        mask = torch.from_numpy(mask)
         return mask.float()
     
     def augmentation(self, image, mask):
@@ -170,13 +170,13 @@ class SIIMDatasetVal(torch.utils.data.Dataset):
         mask = mask.resize((self.image_size, self.image_size))
         # 将255转换为1， 0转换为0
         mask = np.around(np.array(mask.convert('L'))/256.)
-        mask = np.reshape(mask, (np.shape(mask)[0],np.shape(mask)[1],1)).astype("float32")
-        to_tensor = transforms.ToTensor()
+        # mask = np.reshape(mask, (np.shape(mask)[0],np.shape(mask)[1],1)).astype("float32")
+        # to_tensor = transforms.ToTensor()
 
-        transform_compose = transforms.Compose([to_tensor])
-        mask = transform_compose(mask)
-        mask = torch.squeeze(mask)
-
+        # transform_compose = transforms.Compose([to_tensor])
+        # mask = transform_compose(mask)
+        # mask = torch.squeeze(mask)
+        mask = torch.from_numpy(mask) 
         return mask.float()
 
 def get_loader(mask_path=None, train_path=None, base_path=None, image_size=224, batch_size=2, num_workers=2, augmentation_flag=False):
