@@ -51,6 +51,7 @@ class Train(object):
         self.epoch_stage1_freeze = config.epoch_stage1_freeze
         self.epoch_stage2 = config.epoch_stage2
         self.epoch_stage2_accumulation = config.epoch_stage2_accumulation
+        self.accumulation_steps = config.accumulation_steps
 
         # 模型初始化
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -191,6 +192,9 @@ class Train(object):
             epoch += 1
             self.unet.train(True)
             epoch_loss = 0
+
+            self.reset_grad() # 梯度累加的时候需要使用
+            
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
                 # GT : Ground Truth
@@ -205,16 +209,17 @@ class Train(object):
                 loss = self.criterion(net_output_flat, masks_flat)
                 epoch_loss += loss.item()
 
-                # Backprop + optimize
+                # Backprop + optimize, see https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20 for Accumulating Gradients
                 if epoch <= self.epoch_stage2 - self.epoch_stage2_accumulation:
-                    # print('Stage2 epoch:{} reset grad'.format(epoch))
-                    # write_txt(self.save_path, 'Stage2 epoch:{} reset grad'.format(epoch))
                     self.reset_grad()
-                # else:
-                #     print('Stage2 epoch:{} accumulation grad'.format(epoch))
-                #     write_txt(self.save_path, 'Stage2 epoch:{} accumulation grad'.format(epoch))
-                loss.backward()
-                self.optimizer.step()
+                    loss.backward()
+                    self.optimizer.step()
+                else:
+                    # loss = loss / self.accumulation_steps                # Normalize our loss (if averaged)
+                    loss.backward()                                      # Backward pass
+                    if (i+1) % self.accumulation_steps == 0:             # Wait for several backward steps
+                        self.optimizer.step()                            # Now we can do an optimizer step
+                        self.reset_grad()
 
                 descript = "Train Loss: %.5f" % (epoch_loss / (i + 1))
                 tbar.set_description(desc=descript)
