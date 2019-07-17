@@ -75,19 +75,19 @@ if __name__ == '__main__':
         # parser.add_argument('--image_size', type=int, default=512)
         # stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
         # 当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
-        parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
+        parser.add_argument('--two_stage', type=bool, default=False, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=16, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=150, help='How many epoch in the first stage')
-        parser.add_argument('--epoch_stage1_freeze', type=int, default=12, help='How many epoch freezes the encoder layer in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=200, help='How many epoch in the first stage')
+        parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
         parser.add_argument('--batch_size_stage2', type=int, default=2, help='batch size in the second stage')
-        parser.add_argument('--epoch_stage2', type=int, default=50, help='How many epoch in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=0, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=15, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
-        parser.add_argument('--augmentation_flag', type=bool, default=False, help='if true, use augmentation method')
+        parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method')
         
         # model set
         parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file. Only work for first stage')

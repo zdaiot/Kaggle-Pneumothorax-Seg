@@ -174,7 +174,7 @@ class Train(object):
         self.lr = lr 
 
     def train_stage2(self):
-        weight_path = os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, self.epoch_stage1))
+        weight_path = os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, 229)) # self.epoch_stage1
         if os.path.isfile(weight_path):
             # Load the pretrained Encoder
             if torch.cuda.is_available:

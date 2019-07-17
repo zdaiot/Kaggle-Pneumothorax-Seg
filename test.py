@@ -70,7 +70,7 @@ class Test(object):
             pred = np.where(pred>threshold, 1, 0)[0]        
             pred = np.reshape(pred, (self.image_size, self.image_size))
 
-            encoding = mask_to_rle(pred, self.image_size, self.image_size)
+            encoding = mask_to_rle(pred.T, self.image_size, self.image_size)
             if encoding == ' ':
                 rle.append([file.strip(), '-1'])
             else:
@@ -98,6 +98,6 @@ if __name__ == "__main__":
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_50.pth')
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_229.pth')
     solver = Test(model_name, checkpoint_path, 1024, mean, std)
-    solver.test_model(threshold=0.52, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.50, csv_path=csv_path, test_image_path=test_image_path)
