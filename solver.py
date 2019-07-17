@@ -75,9 +75,6 @@ class Train(object):
             self.criterion = self.criterion.cuda()
         self.unet.to(self.device)
 
-        self.optimizer = optim.Adam(list(self.unet.parameters()),
-                                    self.lr, [self.beta1, self.beta2]) # TODO
-
     def print_network(self, model, name):
         """Print out the network information."""
         num_params = 0
@@ -126,6 +123,7 @@ class Train(object):
                 self.freeze_encoder(epoch)
             else:
                 self.unfreeze_encoder(epoch)
+            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # TODO
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
@@ -188,6 +186,7 @@ class Train(object):
 
         # Train for Encoder
         lr = self.lr
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # TODO
         for epoch in range(self.epoch_stage2):
             epoch += 1
             self.unet.train(True)
