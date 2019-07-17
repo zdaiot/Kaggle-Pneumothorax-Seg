@@ -35,10 +35,13 @@ ln -s ../../../input/train-rle.csv train-rle.csv
 ```
 
 ## Results
-|backbone|batch_size|image_size|pretrained|data proprecess|lr|score|
-|--|--|--|--|--|--|--|
-|U-Net|32|224|w/o|w/o|random|0.7019|
-|ResNet34|32|224|w/|w/o|random|0.7172|
-|ResNet34|32|224|w/o|w/o|random|0.7295|
-|ResNet34|20|512|w/|w/o|random|0.7508|
-|ResNet34|20|512|w/|w/|random|0.7603|
+|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|score|
+|--|--|--|--|--|--|--|--|--|--|
+|U-Net|32|224|w/o|w/o|w/o|w/o|w/o|random|0.7019|
+|ResNet34|32|224|w/|w/o|w/o|w/o|w/o|random|0.7172|
+|ResNet34|32|224|w/o|w/o|w/o|w/o|w/o|random|0.7295|
+|ResNet34|20|512|w/|w/o|w/o|w/o|w/o|random|0.7508|
+|ResNet34|20|512|w/|w/|w/o|w/o|w/o|random|0.7603|
+|ResNet34|20|512|w/|w/|w|w/o|w|random|0.7974|
+|ResNet34|20|512|w/|w/|w|1024*2|w/o|random|0.7834|
+|ResNet34|20|512|w/|w/|w|1024*2|w|random|0.8112|

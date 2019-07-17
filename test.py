@@ -15,9 +15,10 @@ import matplotlib.pyplot as plt
 from torch.autograd import Variable
 from torchvision import transforms
 from backboned_unet import Unet
+import cv2
 
 class Test(object):
-    def __init__(self, model_type, weight_path, image_size, mean, std, t=None):
+    def __init__(self, model_type, weight_path, image_size, mean, std, t=None, less_than_sum=2048*2):
         # Models
         self.unet = None
         self.optimizer = None
@@ -29,6 +30,7 @@ class Test(object):
         self.unet_path = weight_path
         self.mean = mean
         self.std = std
+        self.less_than_sum = less_than_sum
 
     def build_model(self):
         """Build generator and discriminator."""
@@ -65,12 +67,13 @@ class Test(object):
             img = torch.unsqueeze(img, dim=0)
 
             img = img.float().to(self.device)
-            pred = torch.nn.functional.sigmoid(self.unet(img))
+            pred = torch.sigmoid(self.unet(img))
             pred = pred.detach().cpu().numpy()
-            pred = np.where(pred>threshold, 1, 0)[0]        
-            pred = np.reshape(pred, (self.image_size, self.image_size))
-
-            encoding = mask_to_rle(pred.T, self.image_size, self.image_size)
+            pred = cv2.resize(pred[0,0,...],(1024, 1024))
+            pred = np.where(pred>threshold, 1, 0)      
+            if np.sum(pred) < self.less_than_sum:
+                pred[:] = 0
+            encoding = mask_to_rle(pred.T, 1024, 1024)
             if encoding == ' ':
                 rle.append([file.strip(), '-1'])
             else:
@@ -98,6 +101,6 @@ if __name__ == "__main__":
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_229.pth')
-    solver = Test(model_name, checkpoint_path, 1024, mean, std)
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_180.pth')
+    solver = Test(model_name, checkpoint_path, 512, mean, std, less_than_sum=2048*2)
     solver.test_model(threshold=0.50, csv_path=csv_path, test_image_path=test_image_path)
