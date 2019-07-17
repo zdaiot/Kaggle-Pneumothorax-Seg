@@ -88,17 +88,17 @@ class Train(object):
         """Zero the gradient buffers."""
         self.unet.zero_grad()
 
-    def freeze_encoder(self, epoch):
+    def freeze_encoder(self, epoch=0):
         for param in self.unet.module.backbone.parameters():
             param.requires_grad = False
-        print('Stage1 epoch:{} freeze encoder'.format(epoch))
-        write_txt(self.save_path, 'Stage1 epoch:{} freeze encoder'.format(epoch))
+        # print('Stage1 epoch:{} freeze encoder'.format(epoch))
+        # write_txt(self.save_path, 'Stage1 epoch:{} freeze encoder'.format(epoch))
 
-    def unfreeze_encoder(self, epoch):
+    def unfreeze_encoder(self, epoch=0):
         for param in self.unet.module.backbone.parameters():
             param.requires_grad = True
-        print('Stage1 epoch:{} unfreeze encoder'.format(epoch))
-        write_txt(self.save_path, 'Stage1 epoch:{} unfreeze encoder'.format(epoch))
+        # print('Stage1 epoch:{} unfreeze encoder'.format(epoch))
+        # write_txt(self.save_path, 'Stage1 epoch:{} unfreeze encoder'.format(epoch))
 
     def train(self):
         if self.resume:
@@ -115,15 +115,14 @@ class Train(object):
                 raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
 
         # Train for Encoder
-        lr = self.lr
+        self.freeze_encoder()
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # TODO
         for epoch in range(self.epoch_stage1):
             epoch += 1
             self.unet.train(True)
-            if epoch < self.epoch_stage1_freeze:
-                self.freeze_encoder(epoch)
-            else:
-                self.unfreeze_encoder(epoch)
-            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # TODO
+            if epoch == (self.epoch_stage1_freeze+1):
+                self.unfreeze_encoder()
+                self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # TODO
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
@@ -163,13 +162,11 @@ class Train(object):
 
             # Decay learning rate
             if epoch > (self.epoch_stage1 + self.epoch_stage2 - self.num_epochs_decay):
-                lr -= (self.lr / float(self.num_epochs_decay))
+                self.lr -= (self.lr / float(self.num_epochs_decay))
                 for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = lr
-                print('Decay learning rate to lr: {}.'.format(lr))
-                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(lr))
-        # 重新调整对象的lr，为train_stage2做准备
-        self.lr = lr 
+                    param_group['lr'] = self.lr
+                print('Decay learning rate to lr: {}.'.format(self.lr))
+                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(self.lr))
 
     def train_stage2(self):
         weight_path = os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, 229)) # self.epoch_stage1
@@ -185,7 +182,6 @@ class Train(object):
             raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
 
         # Train for Encoder
-        lr = self.lr
         self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # TODO
         for epoch in range(self.epoch_stage2):
             epoch += 1
@@ -240,11 +236,11 @@ class Train(object):
 
             # Decay learning rate
             if (self.epoch_stage1 + epoch) > (self.epoch_stage1 + self.epoch_stage2 - self.num_epochs_decay):
-                lr -= (self.lr / float(self.num_epochs_decay))
+                self.lr -= (self.lr / float(self.num_epochs_decay))
                 for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = lr
-                print('Decay learning rate to lr: {}.'.format(lr))
-                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(lr))
+                    param_group['lr'] = self.lr
+                print('Decay learning rate to lr: {}.'.format(self.lr))
+                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(self.lr))
 
     def validation(self):
         self.unet.train(False)
