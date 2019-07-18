@@ -62,7 +62,7 @@ def demo(model_name, checkpoint_path, images_path, masks_path, input_size=512, t
     
     # 加载权重
     checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint)
+    model.load_state_dict(checkpoint['state_dict'])
     model.train(False)
     images = os.listdir(images_path)
     for image in images:
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     images_folder = os.path.join(base_dir, 'image')
     masks_folder = os.path.join(base_dir, 'mask')
     model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_100.pth')
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name + '_0_best.pth')
 
     demo(model_name, checkpoint_path, images_folder, masks_folder, 512, 0.22)
 
