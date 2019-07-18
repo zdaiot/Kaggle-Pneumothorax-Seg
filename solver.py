@@ -167,7 +167,7 @@ class Train(object):
                 loss.backward()
                 self.optimizer.step()
 
-                descript = "Train Loss: %.5f" % (epoch_loss / (i + 1))
+                descript = "Train Loss: %.5f， lr: %f" % (epoch_loss / (i + 1), self.lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
@@ -239,7 +239,7 @@ class Train(object):
                         self.optimizer.step()                            # Now we can do an optimizer step
                         self.reset_grad()
 
-                descript = "Train Loss: %.5f" % (epoch_loss / (i + 1))
+                descript = "Train Loss: %.5f， lr: %f" % (epoch_loss / (i + 1), self.lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
@@ -286,7 +286,8 @@ class Train(object):
                 loss = self.criterion(net_output_flat, masks_flat)
                 loss_sum += loss.item()
 
-                dice = self.dice_overall(torch.sigmoid(net_output_flat), masks_flat).mean()
+                # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
+                dice = self.dice_overall(torch.sigmoid(net_output_flat)>0.5, masks_flat).mean()
                 dice_sum += dice.item()
 
                 descript = "Val Loss: {:.5f}, dice: {:.5f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
@@ -309,9 +310,15 @@ class Train(object):
         intersect = (preds * targs).sum(-1).float()
         # tensor之间按位相加，求两个集合的并。然后按照第二个维度求和，得到[batch size]大小的tensor，每一个值代表该输入图片真实类标与预测类标的并集大小
         union = (preds + targs).sum(-1).float()
-        u0 = union == 0  # 寻找输入图片真实类标与预测类标无并集的情况
+        '''
+        输入图片真实类标与预测类标无并集有两种情况：第一种为预测与真实均没有类标，此时并集之和为0；第二种为真实有类标，但是预测完全错误，此时并集之和不为0;
+
+        寻找输入图片真实类标与预测类标并集之和为0的情况，将其交集置为1，并集置为2，最后还有一个2*交集/并集，值为1；
+        其余情况，直接按照2*交集/并集计算，因为上面的并集并没有减去交集，所以需要拿2*交集，其最大值为1
+        '''
+        u0 = union == 0
         intersect[u0] = 1
-        union[u0] = 2 # 让无并集的位置置为2，防止分母为0
+        union[u0] = 2
         
         return (2. * intersect / union)
 
@@ -345,7 +352,7 @@ class Train(object):
             for i, (images, masks) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
-                net_output = torch.nn.functional.sigmoid(self.unet(images))
+                net_output = torch.sigmoid(self.unet(images))
                 preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
                 # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                 tmp.append(self.dice_overall(preds, masks).mean())
