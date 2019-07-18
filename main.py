@@ -1,5 +1,5 @@
 import argparse
-import os
+import os,glob
 from solver import Train
 from datasets.siim import get_loader
 from torch.backends import cudnn
@@ -8,6 +8,8 @@ import json,codecs
 from pprint import pprint
 from utils.mask_functions import write_txt
 from argparse import Namespace
+from sklearn.model_selection import KFold
+import numpy as np
 
 
 def main(config):
@@ -38,30 +40,55 @@ def main(config):
     json_file.close()
     # write_txt(config.save_path, {k: v for k, v in config._get_kwargs()})
 
-    # 对于第一个阶段方法的处理
-    train_loader, val_loader = get_loader(config.mask_path, config.train_path, config.val_path, config.image_size_stage1,
-                                    config.batch_size_stage1, config.num_workers, config.augmentation_flag)
-    solver = Train(config, train_loader, valid_loader=val_loader, test_loader=None)
-    if config.mode == 'choose_threshold':
-        if config.two_stage == False:
-            solver.choose_threshold(os.path.join(config.save_path, '%s_%d.pth' % (config.model_type, config.epoch_stage1)))
-        else:
-            pass
-    else:
-        solver.train()
+    # 开始，交叉验证
+    kf = KFold(n_splits=config.n_splits, shuffle=True, random_state=1)
+    # 存储每一次交叉验证的得分，最优阈值
+    scores, best_thrs = [], []
+    images_path = glob.glob(config.train_path+'/*.jpg')
+    masks_path = glob.glob(config.mask_path+'/*.png')
+    for index, (train_index, val_index) in enumerate(kf.split(images_path)):
+        train_image = [images_path[x] for x in train_index]
+        train_mask = [masks_path[x] for x in train_index]
+        val_image = [images_path[x] for x in val_index]
+        val_mask = [masks_path[x] for x in val_index]
 
-    # 对于第二个阶段的处理方法
-    if config.two_stage == True:
-        del train_loader, val_loader
-        train_loader_, val_loader_ = get_loader(config.mask_path, config.train_path, config.val_path, config.image_size_stage2,
-                                    config.batch_size_stage2, config.num_workers, config.augmentation_flag)
-        # 更新类的训练集以及验证集
-        solver.train_loader, solver.val_loader = train_loader_, val_loader_
+        # 对于第一个阶段方法的处理
+        train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage1,
+                                        config.batch_size_stage1, config.num_workers, config.augmentation_flag)
+        solver = Train(config, train_loader, valid_loader=val_loader, test_loader=None)
+        # 是否选取阈值
         if config.mode == 'train':
-            solver.train_stage2()
+            solver.train()
         else:
-            solver.choose_threshold(os.path.join(config.save_path, '%s_%d.pth' % (config.model_type, config.epoch_stage2+config.epoch_stage1)))
+            # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
+            if config.two_stage == False:
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d.pth' % (config.model_type, config.epoch_stage1)), index)
+                scores.append(score)
+                best_thrs.append(best_thr)
+            else:
+                pass
 
+        # 对于第二个阶段的处理方法
+        if config.two_stage == True:
+            del train_loader, val_loader
+            train_loader_, val_loader_ = get_loader(config.mask_path, config.train_path, config.val_path, config.image_size_stage2,
+                                        config.batch_size_stage2, config.num_workers, config.augmentation_flag)
+            # 更新类的训练集以及验证集
+            solver.train_loader, solver.val_loader = train_loader_, val_loader_
+            if config.mode == 'train':
+                solver.train_stage2()
+            else:
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d.pth' % (config.model_type, config.epoch_stage2+config.epoch_stage1)), index)
+                scores.append(score)
+                best_thrs.append(best_thr)
+    
+    # 若为选阈值操作，则输出n_fold折验证集结果的平均值
+    if config.mode == 'choose_threshold':
+        score_mean = np.array(scores).mean()
+        thrs_mean = np.array(best_thrs).mean()
+        print('score_mean:{}, thrs_mean:{}'.format(score_mean, thrs_mean))
+
+        
 if __name__ == '__main__':
     use_paras = False
     if use_paras:
@@ -88,7 +115,8 @@ if __name__ == '__main__':
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
         parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method')
-        
+        parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
+
         # model set
         parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file. Only work for first stage')
         parser.add_argument('--mode', type=str, default='train', help='train/choose_threshold')

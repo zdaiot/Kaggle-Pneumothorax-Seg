@@ -277,7 +277,7 @@ class Train(object):
         union[u0] = 2 # 让无并集的位置置为2，防止分母为0
         return (2. * intersect / union)
 
-    def choose_threshold(self, model_path, noise_th=75.0 * (256 / 128.0) ** 2):
+    def choose_threshold(self, model_path, index, noise_th=75.0 * (256 / 128.0) ** 2):
         self.unet.module.load_state_dict(torch.load(model_path))
         print('Loaded from %s' % model_path)
         self.unet.train(False)
@@ -287,7 +287,7 @@ class Train(object):
         thrs_ = np.arange(0.1, 1, 0.1)  # 阈值列表
         for th in thrs_:
             tmp = []
-            tbar = tqdm.tqdm(self.train_loader)
+            tbar = tqdm.tqdm(self.valid_loader)
             for i, (images, masks) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
@@ -303,7 +303,7 @@ class Train(object):
         thrs = np.arange(best_thrs_-0.05, best_thrs_+0.05, 0.01)  # 阈值列表
         for th in thrs:
             tmp = []
-            tbar = tqdm.tqdm(self.train_loader)
+            tbar = tqdm.tqdm(self.valid_loader)
             for i, (images, masks) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
@@ -313,8 +313,9 @@ class Train(object):
                 tmp.append(self.dice_overall(preds, masks).mean())
             dices.append(sum(tmp) / len(tmp))
         dices = np.array(dices)
+        score = dices.max()
         best_thrs = thrs[dices.argmax()]
-        print('best_thrs:', best_thrs)
+        print('best_thrs:{}, score:{}'.format(best_thrs,score))
 
         plt.subplot(1, 2, 1)
         plt.title('Large-scale search')
@@ -322,5 +323,6 @@ class Train(object):
         plt.subplot(1, 2, 2)
         plt.title('Little-scale search')
         plt.plot(thrs, dices)
-        plt.show()
-        return best_thrs
+        plt.savefig(os.path.join(self.save_path, str(index)+'png'))
+        # plt.show()
+        return score, best_thrs
