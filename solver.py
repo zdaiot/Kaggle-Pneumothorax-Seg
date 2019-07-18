@@ -167,12 +167,12 @@ class Train(object):
                 loss.backward()
                 self.optimizer.step()
 
-                descript = "Train Loss: %.5f, lr: %f" % (epoch_loss / (i + 1), self.lr)
+                descript = "Train Loss: %.7f, lr: %f" % (epoch_loss / (i + 1), self.lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
-            print('Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
-            write_txt(self.save_path, 'Stage1 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
+            print('Stage1 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Stage1 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
 
             loss_mean, dice_mean = self.validation()
             if dice_mean > self.max_dice: 
@@ -239,12 +239,12 @@ class Train(object):
                         self.optimizer.step()                            # Now we can do an optimizer step
                         self.reset_grad()
 
-                descript = "Train Loss: %.5f, lr: %f" % (epoch_loss / (i + 1), self.lr)
+                descript = "Train Loss: %.7f, lr: %f" % (epoch_loss / (i + 1), self.lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
-            print('Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
-            write_txt(self.save_path, 'Stage2 Epoch [%d/%d], Loss: %.5f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
+            print('Stage2 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Stage2 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
 
             loss_mean, dice_mean = self.validation()
             if dice_mean > self.max_dice: 
@@ -291,12 +291,12 @@ class Train(object):
                 dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
                 dice_sum += dice.item()
 
-                descript = "Val Loss: {:.5f}, dice: {:.5f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
+                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
                 tbar.set_description(desc=descript)
         
         loss_mean, dice_mean = loss_sum/len(tbar), dice_sum/len(tbar)
-        print("Val Loss: {:.5f}, dice: {:.5f}".format(loss_mean, dice_mean))
-        write_txt(self.save_path, "Val Loss: {:.5f}, dice: {:.5f}".format(loss_mean, dice_mean))
+        print("Val Loss: {:.7f}, dice: {:.7f}".format(loss_mean, dice_mean))
+        write_txt(self.save_path, "Val Loss: {:.7f}, dice: {:.7f}".format(loss_mean, dice_mean))
         return loss_mean, dice_mean
 
     # dice for threshold selection
