@@ -167,7 +167,7 @@ class Train(object):
                 loss.backward()
                 self.optimizer.step()
 
-                descript = "Train Loss: %.5f， lr: %f" % (epoch_loss / (i + 1), self.lr)
+                descript = "Train Loss: %.5f, lr: %f" % (epoch_loss / (i + 1), self.lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
@@ -239,7 +239,7 @@ class Train(object):
                         self.optimizer.step()                            # Now we can do an optimizer step
                         self.reset_grad()
 
-                descript = "Train Loss: %.5f， lr: %f" % (epoch_loss / (i + 1), self.lr)
+                descript = "Train Loss: %.5f, lr: %f" % (epoch_loss / (i + 1), self.lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
@@ -287,7 +287,8 @@ class Train(object):
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
-                dice = self.dice_overall(torch.sigmoid(net_output_flat)>0.5, masks_flat).mean()
+                net_output_flat_sign = (torch.sigmoid(net_output_flat)>0.5).float()
+                dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
                 dice_sum += dice.item()
 
                 descript = "Val Loss: {:.5f}, dice: {:.5f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
