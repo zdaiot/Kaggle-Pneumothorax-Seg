@@ -90,14 +90,14 @@ class Train(object):
     def freeze_encoder(self, epoch=0):
         for param in self.unet.module.backbone.parameters():
             param.requires_grad = False
-        # print('Stage1 epoch:{} freeze encoder'.format(epoch))
-        # write_txt(self.save_path, 'Stage1 epoch:{} freeze encoder'.format(epoch))
+        print('Stage1 epoch:{} freeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage1 epoch:{} freeze encoder'.format(epoch))
 
     def unfreeze_encoder(self, epoch=0):
         for param in self.unet.module.backbone.parameters():
             param.requires_grad = True
-        # print('Stage1 epoch:{} unfreeze encoder'.format(epoch))
-        # write_txt(self.save_path, 'Stage1 epoch:{} unfreeze encoder'.format(epoch))
+        print('Stage1 epoch:{} unfreeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage1 epoch:{} unfreeze encoder'.format(epoch))
 
     def save_checkpoint(self, state, index, is_best): 
         # 保存权重，每一epoch均保存一次，若为最优，则复制到最优权重；命名可以区分不同的交叉验证 
@@ -121,7 +121,7 @@ class Train(object):
             self.lr = checkpoint['lr']
             self.start_epoch = checkpoint['epoch']
             self.max_dice = checkpoint['max_dice']
-            self.optimizer = checkpoint['optimizer']
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
 
             print('%s is Successfully Loaded from %s' % (self.model_type, weight_path))
             write_txt(self.save_path, '%s is Successfully Loaded from %s' % (self.model_type, weight_path))
@@ -132,11 +132,12 @@ class Train(object):
         '''是否加载之前训练的参数；只考虑保存的参数文件中start_epoch大于epoch_stage1_freeze的情况
         若从头训练的话，需要冻结编码层，且初始化迭代器；否则的话，从文件中加载即可。
         '''
+        self.freeze_encoder()
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
         if self.resume:
+            self.unfreeze_encoder()
+            self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
             self.load_checkpoint()
-        else:
-            self.freeze_encoder()
-            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # TODO
 
         for epoch in range(self.start_epoch, self.epoch_stage1):
             epoch += 1
@@ -144,8 +145,8 @@ class Train(object):
             # 到特定的epoch，解冻模型并将参数添加到优化器中；不能直接初始化优化器，否则的话中间变量会消失(例如冲量信息等)，影响模型效果
             # see https://discuss.pytorch.org/t/how-the-pytorch-freeze-network-in-some-layers-only-the-rest-of-the-training/7088/12 for more information
             if epoch == (self.epoch_stage1_freeze+1):
-                self.unfreeze_encoder()
-                self.optimizer.add_param_group(self.unet.module.backbone.parameters())
+                self.unfreeze_encoder(epoch)
+                self.optimizer.add_param_group({'params':self.unet.module.backbone.parameters()})
                 # self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
