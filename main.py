@@ -20,10 +20,10 @@ def main(config):
         return
 
     # 配置随机学习率，随机权重衰减，保存路径等
-    lr = random.random() * 0.0005 + 0.0000005
+    lr = random.random() * 0.005 + 0.000005
     augmentation_prob = random.random() * 0.7
     decay_ratio = random.random() * 0.8
-    decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
+    decay_epoch = 30
 
     config.augmentation_prob = augmentation_prob
     config.lr = lr
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         parser.add_argument('--two_stage', type=bool, default=False, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=150, help='How many epoch in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=180, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=10, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')

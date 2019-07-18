@@ -58,7 +58,7 @@ def data_augmentation(original_image, original_mask):
             ], p=0.75),
         
         # 直方图均衡化
-        CLAHE(p=1),
+        CLAHE(p=0.0),
 
         RandomGamma(gamma_limit=(80, 120), p=0.5),
         RandomBrightnessContrast(p=0.5),
