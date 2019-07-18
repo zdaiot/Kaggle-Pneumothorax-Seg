@@ -20,7 +20,7 @@ conda install albumentations -c albumentations
 - [x] epoch freezes the encoder layer in the first stage
 - [x] epoch gradients accumulate in the second stage
 - [x] adapt to torchvison0.2.0
-- [ ] cross validation
+- [x] cross validation
 - [ ] leak
 
 ## Dataset
