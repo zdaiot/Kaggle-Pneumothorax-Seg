@@ -286,7 +286,7 @@ class Train(object):
                 loss = self.criterion(net_output_flat, masks_flat)
                 loss_sum += loss.item()
 
-                dice = self.dice_overall(net_output_flat, masks_flat).mean()
+                dice = self.dice_overall(torch.sigmoid(net_output_flat), masks_flat).mean()
                 dice_sum += dice.item()
 
                 descript = "Val Loss: {:.5f}, dice: {:.5f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
@@ -329,7 +329,7 @@ class Train(object):
             for i, (images, masks) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
-                net_output = torch.nn.functional.sigmoid(self.unet(images))
+                net_output = torch.sigmoid(self.unet(images))
                 preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
                 # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                 tmp.append(self.dice_overall(preds, masks).mean())
