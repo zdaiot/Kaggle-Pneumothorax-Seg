@@ -5,10 +5,10 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 from albumentations import (
-    Compose, HorizontalFlip, CLAHE, HueSaturationValue,
+    Compose, HorizontalFlip, VerticalFlip, CLAHE, RandomRotate90, HueSaturationValue,
     RandomBrightness, RandomContrast, RandomGamma,OneOf,
     ToFloat, ShiftScaleRotate,GridDistortion, ElasticTransform, JpegCompression, HueSaturationValue,
-    RGBShift, RandomBrightness, RandomContrast, Blur, MotionBlur, MedianBlur, GaussNoise,CenterCrop,
+    RGBShift, RandomBrightnessContrast, RandomContrast, Blur, MotionBlur, MedianBlur, GaussNoise,CenterCrop,
     IAAAdditiveGaussianNoise,GaussNoise,Cutout
 )
 
@@ -50,10 +50,18 @@ def data_augmentation(original_image, original_mask):
     """
 
     augmentations = Compose([
-        HorizontalFlip(p=0.5),
-        RandomContrast(limit=0.2, p=0.5),
+        # 翻转
+        OneOf([
+                HorizontalFlip(p=0.5),
+                VerticalFlip(p=0.5), 
+                RandomRotate90(p=0.5),   
+            ], p=0.75),
+        
+        # 直方图均衡化
+        CLAHE(p=1),
+
         RandomGamma(gamma_limit=(80, 120), p=0.5),
-        RandomBrightness(limit=1.2, p=0.5),
+        RandomBrightnessContrast(p=0.5),
         
         OneOf([
                 MotionBlur(p=0.2),

@@ -1,4 +1,3 @@
-# edited by XiangqianMa
 # 2019.7.16
 import numpy as np
 import time
@@ -11,15 +10,15 @@ from torch.autograd import Variable
 
 
 class DiceLoss(nn.Module):
-    """two class dice loss
+    """二分类 dice loss
     """
-    def __init__(self, sigmoid_flag):
+    def __init__(self, sigmoid_flag=True):
         super(DiceLoss, self).__init__()
         self.sigmoid_flag = sigmoid_flag
 
     def forward(self, input, target):
         Num = input.size(0)
-        smooth = 1
+        smooth = 1e-7 # smooth确保分母不为0
 
         if self.sigmoid_flag:
             input = torch.sigmoid(input)
@@ -27,9 +26,10 @@ class DiceLoss(nn.Module):
         input_flat = input.view(Num, -1)
         target_flat = target.view(Num, -1)
 
-        intersection = input_flat * target_flat
-        loss = 2 * (intersection.sum(1) + smooth) / ((input_flat.sum(1) + target_flat.sum(1)) + smooth)
-        loss = loss / Num
+        intersection = (input_flat * target_flat).sum(1)
+        union = input_flat.sum(1) + target_flat.sum(1)
+        loss = (2.0 * intersection + smooth) / (union + smooth)
+        loss = 1 - loss.sum(0) / Num
 
         return loss
 
@@ -127,6 +127,30 @@ class MultiFocalLoss(nn.Module):
             return loss.sum()
 
 
+class GetLoss(nn.Module):
+    """依据传入的损失函数列表，返回一个总的损失函数
+    """
+    def __init__(self, loss_funs, loss_weights, sigmoid_flag):
+        """
+        Args:
+            loss_funs: list，需要使用的损失函数
+            loss_weights: list，每一个损失对应的权重
+        """
+        super(GetLoss, self).__init__()
+        self.loss_funs = torch.nn.ModuleList(loss_funs)
+        self.loss_weights = loss_weights
+        self.sigmoid_flag = sigmoid_flag
+    
+    def forward(self, input, target):
+        if self.sigmoid_flag:
+            input = torch.sigmoid(input)
+        loss = 0
+        for index, loss_fun in enumerate(self.loss_funs):
+            loss += self.loss_weights[index] * loss_fun(input, target)
+
+        return loss    
+    
+
 if __name__ == "__main__":
     start_time = time.time()
     maxe = 0
@@ -143,7 +167,6 @@ if __name__ == "__main__":
         if abs(a-b)>maxe: maxe = abs(a-b)
     print('time:',time.time()-start_time,'max_error:',maxe)
 
-
     start_time = time.time()
     maxe = 0
     for i in range(100):
@@ -157,5 +180,5 @@ if __name__ == "__main__":
         output1 = nn.NLLLoss2d()(F.log_softmax(x),l)
         a = output0.item()
         b = output1.item()
-        if abs(a-b)>maxe: maxe = abs(a-b)
-    print('time:',time.time()-start_time,'max_error:',maxe)
+        if abs(a-b) > maxe : maxe = abs(a-b)
+    print('time:', time.time()-start_time,'max_error:',maxe)
