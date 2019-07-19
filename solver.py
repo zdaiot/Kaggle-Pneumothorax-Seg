@@ -138,6 +138,9 @@ class Train(object):
             self.unfreeze_encoder()
             self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
             self.load_checkpoint()
+        
+        stage1_epoches = self.epoch_stage1 - self.start_epoch
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches)
 
         for epoch in range(self.start_epoch, self.epoch_stage1):
             epoch += 1
@@ -148,6 +151,7 @@ class Train(object):
                 self.unfreeze_encoder(epoch)
                 self.optimizer.add_param_group({'params':self.unet.module.backbone.parameters()})
                 # self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
+            
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
@@ -166,8 +170,12 @@ class Train(object):
                 self.reset_grad()
                 loss.backward()
                 self.optimizer.step()
+                
+                params_groups_lr = str()
+                for group_ind, param_group in enumerate(self.optimizer.param_groups):
+                    params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
 
-                descript = "Train Loss: %.7f, lr: %f" % (epoch_loss / (i + 1), self.lr)
+                descript = "Train Loss: %.7f, lr: %s" % (epoch_loss / (i + 1), params_groups_lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
@@ -188,13 +196,10 @@ class Train(object):
             
             self.save_checkpoint(state, index, is_best)
 
-            # Decay learning rate
-            if epoch > (self.epoch_stage1 + self.epoch_stage2 - self.num_epochs_decay):
-                self.lr -= (self.lr / float(self.num_epochs_decay))
-                for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = self.lr
-                print('Decay learning rate to lr: {}.'.format(self.lr))
-                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(self.lr))
+            # 学习率衰减
+            print('Lr decaying...')
+            lr_scheduler.step()
+            self.lr = lr_scheduler.get_lr()
 
     def train_stage2(self, index):
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
@@ -205,6 +210,9 @@ class Train(object):
         # 第一阶段结束后直接进行第二个阶段，中间并没有暂停
         else:
             self.start_epoch = 0
+
+        stage2_epoches = self.epoch_stage2 - self.start_epoch
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage2_epoches)
 
         for epoch in range(self.start_epoch, self.epoch_stage2):
             epoch += 1
@@ -239,7 +247,11 @@ class Train(object):
                         self.optimizer.step()                            # Now we can do an optimizer step
                         self.reset_grad()
 
-                descript = "Train Loss: %.7f, lr: %f" % (epoch_loss / (i + 1), self.lr)
+                params_groups_lr = str()
+                for group_ind, param_group in enumerate(self.optimizer.param_groups):
+                    params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
+
+                descript = "Train Loss: %.7f, lr: %s" % (epoch_loss / (i + 1), params_groups_lr)
                 tbar.set_description(desc=descript)
 
             # Print the log info
@@ -260,13 +272,11 @@ class Train(object):
             
             self.save_checkpoint(state, index, is_best)
 
-            # Decay learning rate
-            if (self.epoch_stage1 + epoch) > (self.epoch_stage1 + self.epoch_stage2 - self.num_epochs_decay):
-                self.lr -= (self.lr / float(self.num_epochs_decay))
-                for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = self.lr
-                print('Decay learning rate to lr: {}.'.format(self.lr))
-                write_txt(self.save_path, 'Decay learning rate to lr: {}.'.format(self.lr))
+            # 学习率衰减
+            print('Lr decaying...')
+            lr_scheduler.step()
+            self.lr = lr_scheduler.get_lr()
+            
 
     def validation(self):
         # 验证的时候，train(False)是必须的0，设置其中的BN层、dropout等为eval模式
@@ -328,40 +338,42 @@ class Train(object):
         print('Loaded from %s' % model_path)
         self.unet.train(False)
         self.unet.eval()
-        # 先大概选取范围
-        dices_ = []
-        thrs_ = np.arange(0.1, 1, 0.1)  # 阈值列表
-        for th in thrs_:
-            tmp = []
-            tbar = tqdm.tqdm(self.valid_loader)
-            for i, (images, masks) in enumerate(tbar):
-                # GT : Ground Truth
-                images = images.to(self.device)
-                net_output = torch.sigmoid(self.unet(images))
-                preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
-                # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
-                tmp.append(self.dice_overall(preds, masks).mean())
-            dices_.append(sum(tmp) / len(tmp))
-        dices_ = np.array(dices_)
-        best_thrs_ = thrs_[dices_.argmax()]
-        # 精细选取范围
-        dices = []
-        thrs = np.arange(best_thrs_-0.05, best_thrs_+0.05, 0.01)  # 阈值列表
-        for th in thrs:
-            tmp = []
-            tbar = tqdm.tqdm(self.valid_loader)
-            for i, (images, masks) in enumerate(tbar):
-                # GT : Ground Truth
-                images = images.to(self.device)
-                net_output = torch.sigmoid(self.unet(images))
-                preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
-                # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
-                tmp.append(self.dice_overall(preds, masks).mean())
-            dices.append(sum(tmp) / len(tmp))
-        dices = np.array(dices)
-        score = dices.max()
-        best_thrs = thrs[dices.argmax()]
-        print('best_thrs:{}, score:{}'.format(best_thrs,score))
+        
+        with torch.no_grad():
+            # 先大概选取范围
+            dices_ = []
+            thrs_ = np.arange(0.1, 1, 0.1)  # 阈值列表
+            for th in thrs_:
+                tmp = []
+                tbar = tqdm.tqdm(self.valid_loader)
+                for i, (images, masks) in enumerate(tbar):
+                    # GT : Ground Truth
+                    images = images.to(self.device)
+                    net_output = torch.sigmoid(self.unet(images))
+                    preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
+                    # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
+                    tmp.append(self.dice_overall(preds, masks).mean())
+                dices_.append(sum(tmp) / len(tmp))
+            dices_ = np.array(dices_)
+            best_thrs_ = thrs_[dices_.argmax()]
+            # 精细选取范围
+            dices = []
+            thrs = np.arange(best_thrs_-0.05, best_thrs_+0.05, 0.01)  # 阈值列表
+            for th in thrs:
+                tmp = []
+                tbar = tqdm.tqdm(self.valid_loader)
+                for i, (images, masks) in enumerate(tbar):
+                    # GT : Ground Truth
+                    images = images.to(self.device)
+                    net_output = torch.sigmoid(self.unet(images))
+                    preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
+                    # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
+                    tmp.append(self.dice_overall(preds, masks).mean())
+                dices.append(sum(tmp) / len(tmp))
+            dices = np.array(dices)
+            score = dices.max()
+            best_thrs = thrs[dices.argmax()]
+            print('best_thrs:{}, score:{}'.format(best_thrs,score))
 
         plt.subplot(1, 2, 1)
         plt.title('Large-scale search')

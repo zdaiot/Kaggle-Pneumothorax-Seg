@@ -21,6 +21,7 @@ conda install albumentations -c albumentations
 - [x] epoch gradients accumulate in the second stage
 - [x] adapt to torchvison0.2.0
 - [x] cross validation
+- [ ] lr decay - cos annealing
 - [ ] leak
 
 ## Dataset

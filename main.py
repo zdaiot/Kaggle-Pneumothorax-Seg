@@ -20,10 +20,10 @@ def main(config):
         return
 
     # 配置随机学习率，随机权重衰减，保存路径等
-    lr = random.random() * 0.005 + 0.000005
+    lr = random.random() * 0.0005 + 0.0000005
     augmentation_prob = random.random() * 0.7
     decay_ratio = random.random() * 0.8
-    decay_epoch = 30
+    decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
 
     config.augmentation_prob = augmentation_prob
     config.lr = lr

@@ -58,27 +58,30 @@ class Test(object):
         rle = []
         sample_df = pd.read_csv(csv_path)
         count_has_mask = 0
-        # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
-        for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
-            file = row['ImageId']
-            img_path = os.path.join(test_image_path, file.strip() + '.jpg')
-            img = Image.open(img_path).convert('RGB')
-            img = self.image_transform(img)
-            img = torch.unsqueeze(img, dim=0)
 
-            img = img.float().to(self.device)
-            pred = torch.sigmoid(self.unet(img))
-            pred = pred.detach().cpu().numpy()
-            pred = cv2.resize(pred[0,0,...],(1024, 1024))
-            pred = np.where(pred>threshold, 1, 0)      
-            if np.sum(pred) < self.less_than_sum:
-                pred[:] = 0
-            encoding = mask_to_rle(pred.T, 1024, 1024)
-            if encoding == ' ':
-                rle.append([file.strip(), '-1'])
-            else:
-                count_has_mask += 1
-                rle.append([file.strip(), encoding[1:]])
+        with torch.no_grad():
+            # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
+            for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
+                file = row['ImageId']
+                img_path = os.path.join(test_image_path, file.strip() + '.jpg')
+                img = Image.open(img_path).convert('RGB')
+                img = self.image_transform(img)
+                img = torch.unsqueeze(img, dim=0)
+
+                img = img.float().to(self.device)
+                pred = torch.sigmoid(self.unet(img))
+                pred = pred.detach().cpu().numpy()
+                pred = cv2.resize(pred[0,0,...],(1024, 1024))
+                pred = np.where(pred>threshold, 1, 0)      
+                if np.sum(pred) < self.less_than_sum:
+                    pred[:] = 0
+                encoding = mask_to_rle(pred.T, 1024, 1024)
+                if encoding == ' ':
+                    rle.append([file.strip(), '-1'])
+                else:
+                    count_has_mask += 1
+                    rle.append([file.strip(), encoding[1:]])
+                    
         print('The number of masked pictures predicted:',count_has_mask)
         submission_df = pd.DataFrame(rle, columns=['ImageId','EncodedPixels'])
         submission_df.to_csv('submission.csv', index=False)
@@ -103,4 +106,4 @@ if __name__ == "__main__":
     model_name = 'unet_resnet34'
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_0_best.pth')
     solver = Test(model_name, checkpoint_path, 512, mean, std, less_than_sum=2048*2)
-    solver.test_model(threshold=0.50, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.559, csv_path=csv_path, test_image_path=test_image_path)

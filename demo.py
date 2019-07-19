@@ -82,6 +82,6 @@ if __name__ == "__main__":
     model_name = 'unet_resnet34'
     checkpoint_path = os.path.join('checkpoints', model_name, model_name + '_0_best.pth')
 
-    demo(model_name, checkpoint_path, images_folder, masks_folder, 512, 0.22)
+    demo(model_name, checkpoint_path, images_folder, masks_folder, 512, 0.559)
 
     
