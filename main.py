@@ -76,7 +76,7 @@ def main(config):
         # 对于第二个阶段的处理方法
         if config.two_stage == True:
             del train_loader, val_loader
-            train_loader_, val_loader_ = get_loader(config.mask_path, config.train_path, config.val_path, config.image_size_stage2,
+            train_loader_, val_loader_ = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
                                         config.batch_size_stage2, config.num_workers, config.augmentation_flag)
             # 更新类的训练集以及验证集
             solver.train_loader, solver.val_loader = train_loader_, val_loader_
@@ -112,7 +112,7 @@ if __name__ == '__main__':
         # stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
         # 当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
         # 当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
-        parser.add_argument('--two_stage', type=bool, default=False, help='if true, use two_stage method')
+        parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=180, help='How many epoch in the first stage')
@@ -120,16 +120,16 @@ if __name__ == '__main__':
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
         parser.add_argument('--batch_size_stage2', type=int, default=2, help='batch size in the second stage')
-        parser.add_argument('--epoch_stage2', type=int, default=0, help='How many epoch in the second stage')
-        parser.add_argument('--epoch_stage2_accumulation', type=int, default=15, help='How many epoch gradients accumulate in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=50, help='How many epoch in the second stage')
+        parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
         parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method in train set')
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set
-        parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--resume', type=str, default='unet_resnet34_0_best.pth', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--mode', type=str, default='train_stage2', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
 
         # model hyper-parameters

@@ -16,6 +16,8 @@ from torch.autograd import Variable
 from torchvision import transforms
 from backboned_unet import Unet
 import cv2
+from albumentations import CLAHE
+
 
 class Test(object):
     def __init__(self, model_type, weight_path, image_size, mean, std, t=None, less_than_sum=2048*2):
@@ -65,6 +67,12 @@ class Test(object):
                 file = row['ImageId']
                 img_path = os.path.join(test_image_path, file.strip() + '.jpg')
                 img = Image.open(img_path).convert('RGB')
+
+                aug = CLAHE(p=1.0)
+                img = np.asarray(img)
+                img = aug(image=img)['image']
+                img = Image.fromarray(img)
+
                 img = self.image_transform(img)
                 img = torch.unsqueeze(img, dim=0)
 
@@ -81,7 +89,7 @@ class Test(object):
                 else:
                     count_has_mask += 1
                     rle.append([file.strip(), encoding[1:]])
-                    
+
         print('The number of masked pictures predicted:',count_has_mask)
         submission_df = pd.DataFrame(rle, columns=['ImageId','EncodedPixels'])
         submission_df.to_csv('submission.csv', index=False)
@@ -106,4 +114,4 @@ if __name__ == "__main__":
     model_name = 'unet_resnet34'
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_0_best.pth')
     solver = Test(model_name, checkpoint_path, 512, mean, std, less_than_sum=2048*2)
-    solver.test_model(threshold=0.559, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.30, csv_path=csv_path, test_image_path=test_image_path)

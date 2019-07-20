@@ -21,7 +21,8 @@ conda install albumentations -c albumentations
 - [x] epoch gradients accumulate in the second stage
 - [x] adapt to torchvison0.2.0
 - [x] cross validation
-- [ ] lr decay - cos annealing
+- [x] lr decay - cos annealing
+- [x] CLAHE
 - [ ] leak
 
 ## Dataset
@@ -36,14 +37,17 @@ ln -s ../../../input/train-rle.csv train-rle.csv
 ```
 
 ## Results
-|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|sum|score|
-|--|--|--|--|--|--|--|--|--|--|--|
-|U-Net|32|224|w/o|w/o|w/o|w/o|w/o|random||0.7019|
-|ResNet34|32|224|w/|w/o|w/o|w/o|w/o|random||0.7172|
-|ResNet34|32|224|w/o|w/o|w/o|w/o|w/o|random||0.7295|
-|ResNet34|20|512|w/|w/o|w/o|w/o|w/o|random||0.7508|
-|ResNet34|20|512|w/|w/|w/o|w/o|w/o|random||0.7603|
-|ResNet34|20|512|w/|w/|w|w/o|w|random||0.7974|
-|ResNet34|20|512|w/|w/|w|1024*2|w/o|random||0.7834|
-|ResNet34|20|512|w/|w/|w|2048*2|w|random|115|0.8112|
-|ResNet34 freeze|20|512|w/|w/|w|2048*2|w|random|107|0.8118|
+|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|sum|score|
+|--|--|--|--|--|--|--|--|--|--|--|--|
+|U-Net|32|224|w/o|w/o|w/o|w/o|w/o|random|||0.7019|
+|ResNet34|32|224|w/|w/o|w/o|w/o|w/o|random|||0.7172|
+|ResNet34|32|224|w/o|w/o|w/o|w/o|w/o|random|||0.7295|
+|ResNet34|20|512|w/|w/o|w/o|w/o|w/o|random|||0.7508|
+|ResNet34|20|512|w/|w/|w/o|w/o|w/o|random|||0.7603|
+|ResNet34|20|512|w/|w/|w|w/o|w|random|||0.7974|
+|ResNet34|20|512|w/|w/|w|1024*2|w/o|random|||0.7834|
+|ResNet34|20|512|w/|w/|w|2048*2|w|random||115|0.8112|
+|ResNet34 freeze|20|512|w/|w/|w|2048*2|w|random||107|0.8118|
+|ResNet34 freeze|20|512|w/|w/|w/|2048*2|w|CosineAnnealingLR|0.45|164|0.8259|
+|ResNet34 freeze|20|512|w/|w/ CLAHE|w/|2048*2|w|CosineAnnealingLR|0.47|208|0.8401|
+|ResNet34 freeze|20|512|w/|w/ CLAHE|w/|2048*2|w|CosineAnnealingLR|0.40|225|0.8412|

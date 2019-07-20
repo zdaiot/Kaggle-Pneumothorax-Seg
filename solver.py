@@ -90,14 +90,14 @@ class Train(object):
     def freeze_encoder(self, epoch=0):
         for param in self.unet.module.backbone.parameters():
             param.requires_grad = False
-        print('Stage1 epoch:{} freeze encoder'.format(epoch))
-        write_txt(self.save_path, 'Stage1 epoch:{} freeze encoder'.format(epoch))
+        print('Stage epoch:{} freeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage epoch:{} freeze encoder'.format(epoch))
 
     def unfreeze_encoder(self, epoch=0):
         for param in self.unet.module.backbone.parameters():
             param.requires_grad = True
-        print('Stage1 epoch:{} unfreeze encoder'.format(epoch))
-        write_txt(self.save_path, 'Stage1 epoch:{} unfreeze encoder'.format(epoch))
+        print('Stage epoch:{} unfreeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage epoch:{} unfreeze encoder'.format(epoch))
 
     def save_checkpoint(self, state, index, is_best): 
         # 保存权重，每一epoch均保存一次，若为最优，则复制到最优权重；命名可以区分不同的交叉验证 
@@ -204,8 +204,13 @@ class Train(object):
     def train_stage2(self, index):
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
+            self.freeze_encoder()
+            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
+            self.unfreeze_encoder()
+            self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
+            
             self.load_checkpoint()
-            if self.mode == 'traim_stage2':
+            if self.mode == 'train_stage2':
                 self.start_epoch = 0
         # 第一阶段结束后直接进行第二个阶段，中间并没有暂停
         else:
@@ -333,7 +338,7 @@ class Train(object):
         
         return (2. * intersect / union)
 
-    def choose_threshold(self, model_path, index, noise_th=75.0 * (256 / 128.0) ** 2):
+    def choose_threshold(self, model_path, index, noise_th= 2048*2):
         self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
         print('Loaded from %s' % model_path)
         self.unet.train(False)
@@ -351,7 +356,7 @@ class Train(object):
                     images = images.to(self.device)
                     net_output = torch.sigmoid(self.unet(images))
                     preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
-                    # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
+                    preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                     tmp.append(self.dice_overall(preds, masks).mean())
                 dices_.append(sum(tmp) / len(tmp))
             dices_ = np.array(dices_)

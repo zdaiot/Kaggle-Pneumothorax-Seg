@@ -9,11 +9,17 @@ import cv2
 from backboned_unet import Unet
 import torch
 from models.network import U_Net
+from albumentations import CLAHE
 
 
 def detect(model, image_path, input_size=224, threshold=0.6, cuda=True):
     image = Image.open(image_path).convert('RGB')
     image_raw = image.resize((input_size, input_size))
+
+    # aug = CLAHE(p=1.0)
+    # image = np.asarray(image)
+    # image = aug(image=image)['image']
+    # image = Image.fromarray(image)
 
     resize = transforms.Resize(input_size)(image)
     to_tensor = transforms.ToTensor()(resize)
@@ -82,6 +88,6 @@ if __name__ == "__main__":
     model_name = 'unet_resnet34'
     checkpoint_path = os.path.join('checkpoints', model_name, model_name + '_0_best.pth')
 
-    demo(model_name, checkpoint_path, images_folder, masks_folder, 512, 0.559)
+    demo(model_name, checkpoint_path, images_folder, masks_folder, 512, 0.4)
 
     
