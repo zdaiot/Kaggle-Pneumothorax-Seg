@@ -67,7 +67,7 @@ def main(config):
         else:
             # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
             if config.two_stage == False:
-                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_best.pth' % (config.model_type, index)), index)
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
                 scores.append(score)
                 best_thrs.append(best_thr)
             else:
@@ -85,7 +85,7 @@ def main(config):
             if config.mode == 'train' or config.mode == 'train_stage2':
                 solver.train_stage2(index)
             else:
-                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_best.pth' % (config.model_type, index)), index)
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
                 scores.append(score)
                 best_thrs.append(best_thr)
 

@@ -99,14 +99,14 @@ class Train(object):
         print('Stage epoch:{} unfreeze encoder'.format(epoch))
         write_txt(self.save_path, 'Stage epoch:{} unfreeze encoder'.format(epoch))
 
-    def save_checkpoint(self, state, index, is_best): 
-        # 保存权重，每一epoch均保存一次，若为最优，则复制到最优权重；命名可以区分不同的交叉验证 
-        pth_path = os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, index))
+    def save_checkpoint(self, state, stage, index, is_best): 
+        # 保存权重，每一epoch均保存一次，若为最优，则复制到最优权重；index可以区分不同的交叉验证 
+        pth_path = os.path.join(self.save_path, '%s_%d_%d.pth' % (self.model_type, stage, index))
         print('Saving Model.')
         write_txt(self.save_path, 'Saving Model.')
         torch.save(state, pth_path)
         if is_best:
-            shutil.copyfile(os.path.join(self.save_path, '%s_%d.pth' % (self.model_type, index)), os.path.join(self.save_path, '%s_%d_best.pth' % (self.model_type, index)))
+            shutil.copyfile(os.path.join(self.save_path, '%s_%d_%d.pth' % (self.model_type, stage, index)), os.path.join(self.save_path, '%s_%d_%d_best.pth' % (self.model_type, stage, index)))
 
     def load_checkpoint(self):
         # Load the pretrained Encoder
@@ -194,7 +194,7 @@ class Train(object):
                 'optimizer' : self.optimizer.state_dict(),
                 'lr' : self.lr}
             
-            self.save_checkpoint(state, index, is_best)
+            self.save_checkpoint(state, 1, index, is_best)
 
             # 学习率衰减
             print('Lr decaying...')
@@ -275,7 +275,7 @@ class Train(object):
                 'optimizer' : self.optimizer.state_dict(),
                 'lr' : self.lr}
             
-            self.save_checkpoint(state, index, is_best)
+            self.save_checkpoint(state, 2, index, is_best)
 
             # 学习率衰减
             print('Lr decaying...')
