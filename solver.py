@@ -356,7 +356,7 @@ class Train(object):
                     images = images.to(self.device)
                     net_output = torch.sigmoid(self.unet(images))
                     preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
-                    preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
+                    # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                     tmp.append(self.dice_overall(preds, masks).mean())
                 dices_.append(sum(tmp) / len(tmp))
             dices_ = np.array(dices_)
