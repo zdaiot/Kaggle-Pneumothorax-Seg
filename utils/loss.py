@@ -9,6 +9,37 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
+def one_hot(target, class_num):
+    """进行one_hot编码
+    Args:
+        target: 原始类标
+        class_num: 类别数目
+    Return:
+        target_oh: 经过编码的类标
+    """
+    assert target.dim() == 2 or target.dim() == 3
+
+    origin_size = target.size()
+    origin_numel = target.numel()
+    target_flat = target.view(origin_size[0], -1)
+
+    # target_oh的大小为[batch_size, class_num, 单个样本包含的像素数]
+    target_oh = torch.zeros(origin_size[0], class_num, origin_numel/origin_size[0])
+
+    for c in range(class_num):
+        # 找出为第c类的像素
+        target_index = target_flat == c
+        # 将第c类中对应的这些像素置为1
+        target_oh[:, c, :] = target_index
+    
+    if target.dim() > 2:
+        target_oh =  target_oh.view(origin_size[0], class_num, origin_size[1], origin_size[2])
+    else:
+        target_oh = target_oh.view(origin_size[0], class_num)
+
+    return target_oh
+
+
 class DiceLoss(nn.Module):
     """二分类 dice loss
     """
@@ -18,13 +49,13 @@ class DiceLoss(nn.Module):
 
     def forward(self, input, target):
         Num = input.size(0)
-        smooth = 1e-7 # smooth确保分母不为0
+        smooth = 1 # smooth确保分母不为0，同时具有防止过拟合的作用
 
         if self.sigmoid_flag:
             input = torch.sigmoid(input)
         
-        input_flat = input.view(Num, -1)
-        target_flat = target.view(Num, -1)
+        input_flat = input.contiguous().view(Num, -1)
+        target_flat = target.contiguous().view(Num, -1)
 
         intersection = (input_flat * target_flat).sum(1)
         union = input_flat.sum(1) + target_flat.sum(1)
@@ -32,6 +63,28 @@ class DiceLoss(nn.Module):
         loss = 1 - loss.sum(0) / Num
 
         return loss
+
+
+class MultiDiceLoss(nn.Module):
+	"""多分类Dice损失	
+	"""
+	def __init__(self, class_num):
+		super(MultiDiceLoss, self).__init__()
+        self.class_num = class_num
+
+	def forward(self, input, target, weights=None):
+        
+ 		 
+		dice = DiceLoss()
+		totalLoss = 0
+ 
+		for i in range(C):
+			diceLoss = dice(input[:,i], target[:,i])
+			if weights is not None:
+				diceLoss *= weights[i]
+			totalLoss += diceLoss
+ 
+		return totalLoss
 
 
 class FocalLoss(nn.Module):
