@@ -112,6 +112,12 @@ if __name__ == "__main__":
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_0_best.pth')
-    solver = Test(model_name, checkpoint_path, 512, mean, std, less_than_sum=2048*2)
+    # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
+    stage, index = 2, 0
+    if stage == 1:
+        image_size = 512
+    elif stage == 2:
+        image_size = 1024
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}_best.pth'.format(stage, index))
+    solver = Test(model_name, checkpoint_path, image_size, mean, std, less_than_sum=2048*2)
     solver.test_model(threshold=0.30, csv_path=csv_path, test_image_path=test_image_path)

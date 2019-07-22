@@ -67,7 +67,7 @@ def main(config):
         else:
             # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
             if config.two_stage == False:
-                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_best.pth' % (config.model_type, index)), index)
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
                 scores.append(score)
                 best_thrs.append(best_thr)
             else:
@@ -85,7 +85,7 @@ def main(config):
             if config.mode == 'train' or config.mode == 'train_stage2':
                 solver.train_stage2(index)
             else:
-                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_best.pth' % (config.model_type, index)), index)
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
                 scores.append(score)
                 best_thrs.append(best_thr)
 
@@ -119,8 +119,8 @@ if __name__ == '__main__':
         parser.add_argument('--epoch_stage1_freeze', type=int, default=10, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=2, help='batch size in the second stage')
-        parser.add_argument('--epoch_stage2', type=int, default=50, help='How many epoch in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=8, help='batch size in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=100, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
