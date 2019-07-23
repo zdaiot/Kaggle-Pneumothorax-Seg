@@ -24,12 +24,12 @@ def one_hot(target, class_num):
     target_flat = target.view(origin_size[0], -1)
 
     # target_oh的大小为[batch_size, class_num, 单个样本包含的像素数]
-    target_oh = torch.zeros(origin_size[0], class_num, origin_numel/origin_size[0])
+    target_oh = torch.zeros(origin_size[0], class_num, int(origin_numel/origin_size[0]))
 
     for c in range(class_num):
-        # 找出为第c类的像素
+        # 找出真实标定中为第c类的样本
         target_index = target_flat == c
-        # 将第c类中对应的这些像素置为1
+        # 将第c类中对应这些样本的位置 置为1
         target_oh[:, c, :] = target_index
     
     if target.dim() > 2:
@@ -66,25 +66,28 @@ class DiceLoss(nn.Module):
 
 
 class MultiDiceLoss(nn.Module):
-	"""多分类Dice损失	
-	"""
-	def __init__(self, class_num):
-		super(MultiDiceLoss, self).__init__()
+    """多分类Dice损失	
+    """
+    def __init__(self, class_num, weights):
+        super(MultiDiceLoss, self).__init__()
         self.class_num = class_num
+        self.weights = weights
+        self.dice_loss = DiceLoss()
 
-	def forward(self, input, target, weights=None):
-        
- 		 
-		dice = DiceLoss()
-		totalLoss = 0
+    def forward(self, input, target):
+        # 对真实类标进行one-hot编码
+        target_oh = one_hot(target, self.class_num)
+
+        totalLoss = 0
+
+        # 针对每一类分别计算Dice损失
+        for i in range(self.class_num):
+            diceLoss = self.dice_loss(input[:, i], target_oh[:, i])
+            if self.weights is not None:
+                diceLoss *= self.weights[i]
+            totalLoss += diceLoss
  
-		for i in range(C):
-			diceLoss = dice(input[:,i], target[:,i])
-			if weights is not None:
-				diceLoss *= weights[i]
-			totalLoss += diceLoss
- 
-		return totalLoss
+        return totalLoss
 
 
 class FocalLoss(nn.Module):
@@ -95,13 +98,13 @@ class FocalLoss(nn.Module):
         Args:
             gamma: 聚焦因子
             alpha: 类别权重
-            size_average: 是否在各样本之间取平均
         """
         super(FocalLoss, self).__init__()
         self.gamma = gamma
         self.alpha = alpha
-        if isinstance(alpha, (float, int)): self.alpha = torch.Tensor([alpha, 1-alpha])
-        if isinstance(alpha, list): self.alpha = torch.Tensor(alpha)
+        if self.alpha:
+            self.alpha = torch.Tensor([self.alpha, 1-self.alpha])
+
         self.size_average = size_average
 
     def forward(self, input, target):
@@ -110,35 +113,39 @@ class FocalLoss(nn.Module):
             input: 模型的预测，在二分类问题中，取sigmoid后，每一个元素表示对应样本属于正类的概率
             target: 对应样本的真实类标
         """
-        if input.dim()>2:
-            input = input.view(input.size(0), input.size(1), -1)  # N,C,H,W => N,C,H*W
-            input = input.transpose(1, 2)    # N,C,H*W => N,H*W,C
-            input = input.contiguous().view(-1, input.size(2))   # N,H*W,C => N*H*W,C
-        target = target.view(-1, 1)
+        # 所有样本属于正类的概率
+        pt = torch.sigmoid(input)
+        # 对pt的范围进行限定
+        pt = torch.clamp(pt, 1e-8, 1-1e-8)
+        # 所有样本属于负类的概率
+        pt_neg = 1 - pt
+        # 取出正样本
+        pt = pt[target == 1]
+        # 取出负样本
+        pt_neg = pt_neg[target == 0]
 
-        # 向input施加sigmod和log
-        log_pt = F.logsigmoid(input)
-        log_pt = log_pt * target # 筛选出正类对应的概率
-        log_pt = log_pt.view(-1) # 变换为一维向量
-        # 筛选出负类对应的概率
-        log_pt_neg = (1-log_pt)  * (1-target)
+        # 取Log
+        log_pt = torch.log(pt)
+        log_pt_neg = torch.log(pt_neg)
 
-        pt = Variable(log_pt.data.exp())
-        pt_neg = Variable(log_pt_neg.data.exp())
+        # 分别计算正样本、负样本的损失
+        focus_p = torch.pow((1-pt), self.gamma)
+        focus_p = torch.clamp(focus_p, 0, 2)
+        focus_neg = torch.pow((1-pt_neg), self.gamma)
+        focus_neg = torch.clamp(focus_neg, 0, 2)
 
+        loss_p = - focus_p * log_pt
+        loss_neg = - focus_neg * log_pt_neg
+        # loss_p = -(1-pt)**self.gamma * log_pt
+        # loss_neg = - (1-pt_neg)**self.gamma * log_pt_neg
+
+        # 进行类别加权
         if self.alpha is not None:
             if self.alpha.type() != input.data.type():
                 self.alpha = self.alpha.type_as(input.data)
-            log_pt = self.alpha * log_pt
-            log_pt_neg = (1 - self.alpha) * log_pt_neg
+        loss = self.alpha[0] * loss_p.mean() + self.alpha[1] * loss_neg.mean()
 
-        loss = -1 * (1-pt)**self.gamma*log_pt - 1 * (1-pt_neg)**self.gamma*log_pt_neg
-
-        # 所有样本的损失取均值或求和
-        if self.size_average: 
-            return loss.mean()
-        else:
-            return loss.sum()
+        return loss
 
 
 class MultiFocalLoss(nn.Module):
@@ -183,7 +190,7 @@ class MultiFocalLoss(nn.Module):
 class GetLoss(nn.Module):
     """依据传入的损失函数列表，返回一个总的损失函数
     """
-    def __init__(self, loss_funs, loss_weights, sigmoid_flag):
+    def __init__(self, loss_funs, loss_weights, sigmoid_flag=False):
         """
         Args:
             loss_funs: list，需要使用的损失函数
@@ -205,33 +212,41 @@ class GetLoss(nn.Module):
     
 
 if __name__ == "__main__":
-    start_time = time.time()
-    maxe = 0
-    for i in range(1000):
-        x = torch.rand(12800,2)*random.randint(1,10)
-        x = Variable(x.cuda())
-        l = torch.rand(12800).ge(0.1).long()
-        l = Variable(l.cuda())
+    # start_time = time.time()
+    # maxe = 0
+    # for i in range(1000):
+    #     x = torch.rand(12800,2)*random.randint(1,10)
+    #     x = Variable(x.cuda())
+    #     l = torch.rand(12800).ge(0.1).long()
+    #     l = Variable(l.cuda())
 
-        output0 = MultiFocalLoss(gamma=0)(x,l)
-        output1 = nn.CrossEntropyLoss()(x,l)
-        a = output0.item()
-        b = output1.item()
-        if abs(a-b)>maxe: maxe = abs(a-b)
-    print('time:',time.time()-start_time,'max_error:',maxe)
+    #     output0 = MultiFocalLoss(gamma=0)(x,l)
+    #     output1 = nn.CrossEntropyLoss()(x,l)
+    #     a = output0.item()
+    #     b = output1.item()
+    #     if abs(a-b)>maxe: maxe = abs(a-b)
+    # print('time:',time.time()-start_time,'max_error:',maxe)
 
-    start_time = time.time()
-    maxe = 0
-    for i in range(100):
-        x = torch.rand(128,1000,8,4)*random.randint(1,10)
-        x = Variable(x.cuda())
-        l = torch.rand(128,8,4)*1000    # 1000 is classes_num
-        l = l.long()
-        l = Variable(l.cuda())
+    # start_time = time.time()
+    # maxe = 0
+    # for i in range(100):
+    #     x = torch.rand(128,1000,8,4)*random.randint(1,10)
+    #     x = Variable(x.cuda())
+    #     l = torch.rand(128,8,4)*1000    # 1000 is classes_num
+    #     l = l.long()
+    #     l = Variable(l.cuda())
 
-        output0 = MultiFocalLoss(gamma=0)(x,l)
-        output1 = nn.NLLLoss2d()(F.log_softmax(x),l)
-        a = output0.item()
-        b = output1.item()
-        if abs(a-b) > maxe : maxe = abs(a-b)
-    print('time:', time.time()-start_time,'max_error:',maxe)
+    #     output0 = MultiFocalLoss(gamma=0)(x,l)
+    #     output1 = nn.NLLLoss2d()(F.log_softmax(x),l)
+    #     a = output0.item()
+    #     b = output1.item()
+    #     if abs(a-b) > maxe : maxe = abs(a-b)
+    # print('time:', time.time()-start_time,'max_error:',maxe)
+
+    target0 = torch.ones(1, 2, 2)
+    target0[0, 1, 1] = 0
+    target1 = torch.zeros(1, 2, 2)
+    target1[0, 1, 1] = 1
+    target = torch.cat((target0, target1), dim=0)
+    oh = one_hot(target, 2)
+    print(oh)
