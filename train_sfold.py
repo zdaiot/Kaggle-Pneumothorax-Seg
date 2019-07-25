@@ -44,7 +44,7 @@ def main(config):
 
     # 存储每一次交叉验证的最高得分，最优阈值
     scores, best_thrs = [], []
-    
+
     # 统计各样本是否有Mask
     if os.path.exists('dataset_static.pkl'):
         print('Extract dataset static information form: dataset_static.pkl.')
@@ -100,8 +100,8 @@ def main(config):
                 scores.append(score)
                 best_thrs.append(best_thr)
 
-        # 现阶段并没有选择超参数以及不同模型，所以跑一次即可
-        break
+        # 若取消注释，只会跑一个fold
+        # break
 
     # 若为选阈值操作，则输出n_fold折验证集结果的平均值
     if config.mode == 'choose_threshold':
@@ -123,16 +123,16 @@ if __name__ == '__main__':
         # stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
         # 当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
         # 当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
-        parser.add_argument('--two_stage', type=bool, default=False, help='if true, use two_stage method')
+        parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=180, help='How many epoch in the first stage')
-        parser.add_argument('--epoch_stage1_freeze', type=int, default=10, help='How many epoch freezes the encoder layer in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=60, help='How many epoch in the first stage')
+        parser.add_argument('--epoch_stage1_freeze', type=int, default=3, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=8, help='batch size in the second stage')
-        parser.add_argument('--epoch_stage2', type=int, default=0, help='How many epoch in the second stage')
-        parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=4, help='batch size in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
+        parser.add_argument('--epoch_stage2_accumulation', type=int, default=3, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
         parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method in train set')
@@ -156,7 +156,7 @@ if __name__ == '__main__':
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')
-        parser.add_argument('--dataset_root', type=str, default='./datasets/SIIM_data')        
+        parser.add_argument('--dataset_root', type=str, default='./datasets/SIIM_data')
         parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
         parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask')
 
