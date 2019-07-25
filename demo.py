@@ -89,10 +89,10 @@ if __name__ == "__main__":
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, index = 1, 0
     if stage == 1:
-        image_size = 1024
+        image_size = 512
     elif stage == 2:
         image_size = 1024
-    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}.pth'.format(stage, index))
+    checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}_best.pth'.format(stage, index))
     demo(model_name, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.4)
 
     

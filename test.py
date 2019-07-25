@@ -115,9 +115,9 @@ if __name__ == "__main__":
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, index = 1, 0
     if stage == 1:
-        image_size = 1024
+        image_size = 512
     elif stage == 2:
         image_size = 1024
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}.pth'.format(stage, index))
     solver = Test(model_name, checkpoint_path, image_size, mean, std, less_than_sum=2048*2)
-    solver.test_model(threshold=0.30, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.45, csv_path=csv_path, test_image_path=test_image_path)
