@@ -1,0 +1,169 @@
+import argparse
+import os,glob
+from solver import Train
+from datasets.siim import get_loader
+from torch.backends import cudnn
+import random
+import json,codecs
+from pprint import pprint
+from utils.mask_functions import write_txt
+from utils.datasets_statics import DatasetsStatic
+from argparse import Namespace
+from sklearn.model_selection import KFold, StratifiedKFold
+import numpy as np
+import pickle
+
+
+def main(config):
+    cudnn.benchmark = True
+    if config.model_type not in ['U_Net', 'R2U_Net', 'AttU_Net', 'R2AttU_Net', 'unet_resnet34']:
+        print('ERROR!! model_type should be selected in U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
+        print('Your input for model_type was %s' % config.model_type)
+        return
+
+    # 配置随机学习率，随机权重衰减，保存路径等
+    lr = random.random() * 0.0005 + 0.0000005
+    augmentation_prob = random.random() * 0.7
+    decay_ratio = random.random() * 0.8
+    decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
+
+    config.augmentation_prob = augmentation_prob
+    config.lr = lr
+    config.num_epochs_decay = decay_epoch
+    config.save_path = config.model_path + '/' + config.model_type
+    if not os.path.exists(config.save_path):
+        print('Making pth folder...')
+        os.makedirs(config.save_path)
+
+    # 打印配置参数，并输出到文件中
+    pprint(config)
+    with codecs.open(config.save_path + '/params.json', 'w', "utf-8") as json_file:
+        json.dump({k: v for k, v in config._get_kwargs()}, json_file, ensure_ascii=False)
+    json_file.close()
+    # write_txt(config.save_path, {k: v for k, v in config._get_kwargs()})
+
+    # 存储每一次交叉验证的最高得分，最优阈值
+    scores, best_thrs = [], []
+    
+    # 统计各样本是否有Mask
+    if os.path.exists('dataset_static.pkl'):
+        print('Extract dataset static information form: dataset_static.pkl.')
+        with open('dataset_static.pkl', 'rb') as f:
+            static = pickle.load(f)
+            images_path, masks_path, masks_bool = static[0], static[1], static[2]
+    else:
+        print('Calculate dataset static information.')
+        # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
+        dataset_static = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
+        images_path, masks_path, masks_bool = dataset_static.mask_static_bool()
+        with open('dataset_static.pkl', 'wb') as f:
+            pickle.dump([images_path, masks_path, masks_bool], f)
+
+    skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
+    for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
+        train_image = [images_path[x] for x in train_index]
+        train_mask = [masks_path[x] for x in train_index]
+        val_image = [images_path[x] for x in val_index]
+        val_mask = [masks_path[x] for x in val_index]
+
+        # 对于第一个阶段方法的处理
+        train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage1,
+                                        config.batch_size_stage1, config.num_workers, config.augmentation_flag)
+        solver = Train(config, train_loader, val_loader)
+        # 针对不同mode，在第一阶段的处理方式
+        if config.mode == 'train':
+            solver.train(index)
+        elif config.mode == 'train_stage2':
+            pass
+        else:
+            # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
+            if config.two_stage == False:
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
+                scores.append(score)
+                best_thrs.append(best_thr)
+            else:
+                pass
+
+        # 对于第二个阶段的处理方法
+        if config.two_stage == True:
+            del train_loader, val_loader
+            train_loader_, val_loader_ = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
+                                        config.batch_size_stage2, config.num_workers, config.augmentation_flag)
+            # 更新类的训练集以及验证集
+            solver.train_loader, solver.val_loader = train_loader_, val_loader_
+            
+            # 针对不同mode，在第二阶段的处理方式
+            if config.mode == 'train' or config.mode == 'train_stage2':
+                solver.train_stage2(index)
+            else:
+                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
+                scores.append(score)
+                best_thrs.append(best_thr)
+
+        # 现阶段并没有选择超参数以及不同模型，所以跑一次即可
+        break
+
+    # 若为选阈值操作，则输出n_fold折验证集结果的平均值
+    if config.mode == 'choose_threshold':
+        score_mean = np.array(scores).mean()
+        thrs_mean = np.array(best_thrs).mean()
+        print('score_mean:{}, thrs_mean:{}'.format(score_mean, thrs_mean))
+
+        
+if __name__ == '__main__':
+    use_paras = False
+    if use_paras:
+        with open('./checkpoint/unet_resnet34/' + "params.json", 'r', encoding='utf-8') as json_file:
+            config = json.load(json_file)
+            json_file.close()
+        # dict to namespace
+        config = Namespace(**config)
+    else:
+        parser = argparse.ArgumentParser()
+        # stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
+        # 当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
+        # 当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
+        parser.add_argument('--two_stage', type=bool, default=False, help='if true, use two_stage method')
+        parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=180, help='How many epoch in the first stage')
+        parser.add_argument('--epoch_stage1_freeze', type=int, default=10, help='How many epoch freezes the encoder layer in the first stage')
+
+        parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=8, help='batch size in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=0, help='How many epoch in the second stage')
+        parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
+        parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
+
+        parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method in train set')
+        parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
+
+        # model set
+        parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
+        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
+
+        # model hyper-parameters
+        parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
+        parser.add_argument('--img_ch', type=int, default=3)
+        parser.add_argument('--output_ch', type=int, default=1)
+        parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
+        parser.add_argument('--num_workers', type=int, default=8)
+        parser.add_argument('--lr', type=float, default=0.0002)
+        parser.add_argument('--beta1', type=float, default=0.5)  # momentum1 in Adam
+        parser.add_argument('--beta2', type=float, default=0.999)  # momentum2 in Adam
+        parser.add_argument('--augmentation_prob', type=float, default=0.4) # TODO
+        
+        # dataset 
+        parser.add_argument('--model_path', type=str, default='./checkpoints')
+        parser.add_argument('--dataset_root', type=str, default='./datasets/SIIM_data')        
+        parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
+        parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask')
+
+        config = parser.parse_args()
+        # config = {k: v for k, v in args._get_kwargs()}
+    if config.two_stage == False:
+        assert config.epoch_stage2 == 0,'当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减'
+    if config.mode == 'traim_stage2':
+        assert config.resume != ''
+    main(config)
