@@ -14,15 +14,16 @@ conda install albumentations -c albumentations
 ```
 
 ## TODO
-- [x] unet_resnet34
+- [x] unet_resnet34(matters a lot)
 - [x] data augmentation
-- [x] two stage set: two stage batch size and two stages epoch
+- [x] two stage set: two stage batch size(512,1024 big solution matters a lot) and two stages epoch
 - [x] epoch freezes the encoder layer in the first stage
 - [x] epoch gradients accumulate in the second stage
 - [x] adapt to torchvison0.2.0
 - [x] cross validation
-- [x] lr decay - cos annealing
-- [x] CLAHE
+- [x] lr decay - cos annealing(matters a lot)
+- [x] CLAHE for every picture(matters a little)
+- [ ] Average each result of cross-validation 
 - [ ] leak
 
 ## Dataset
@@ -34,6 +35,17 @@ ln -s ../../../input/test_images/ test_images
 ln -s ../../../input/sample_mask sample_mask
 ln -s ../../../input/sample_images/ sample_images
 ln -s ../../../input/train-rle.csv train-rle.csv
+```
+
+## How to run
+ues one gpu:
+```
+CUDA_VISIBLE_DEVICES=0 python main.py
+```
+
+use all gpu:
+```
+python main.py
 ```
 
 ## Results
