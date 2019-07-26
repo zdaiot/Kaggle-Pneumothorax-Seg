@@ -215,13 +215,13 @@ class Train(object):
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             # 若第二个阶段训练一半，要重新加载
-            if self.resume.split('_')[-3] == 2:
+            if self.resume.split('_')[-3] == '2':
                 self.load_checkpoint(load_optimizer=True) # 当load_optimizer为True会重新加载学习率和优化器
                 for index, param_group in enumerate(self.optimizer.param_groups):
                         param_group['lr'] = self.lr[index]
 
             # 若第一阶段结束后没有直接进行第二个阶段，中间暂停了
-            elif self.resume.split('_')[-3] == 1:
+            elif self.resume.split('_')[-3] == '1':
                 self.load_checkpoint(load_optimizer=False)
                 self.start_epoch = 0
 
