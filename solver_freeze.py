@@ -95,6 +95,18 @@ class Train(object):
         """Zero the gradient buffers."""
         self.unet.zero_grad()
 
+    def freeze_encoder(self, epoch=0):
+        for param in self.unet.module.backbone.parameters():
+            param.requires_grad = False
+        print('Stage epoch:{} freeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage epoch:{} freeze encoder'.format(epoch))
+
+    def unfreeze_encoder(self, epoch=0):
+        for param in self.unet.module.backbone.parameters():
+            param.requires_grad = True
+        print('Stage epoch:{} unfreeze encoder'.format(epoch))
+        write_txt(self.save_path, 'Stage epoch:{} unfreeze encoder'.format(epoch))
+
     def save_checkpoint(self, state, stage, index, is_best): 
         # 保存权重，每一epoch均保存一次，若为最优，则复制到最优权重；index可以区分不同的交叉验证 
         pth_path = os.path.join(self.save_path, '%s_%d_%d.pth' % (self.model_type, stage, index))
@@ -129,11 +141,16 @@ class Train(object):
         '''是否加载之前训练的参数；只考虑保存的参数文件中start_epoch大于epoch_stage1_freeze的情况
         若从头训练的话，需要冻结编码层，且初始化迭代器；否则的话，从文件中加载即可。
         '''
-        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, [self.beta1, self.beta2])
+        self.freeze_encoder()
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
         if self.resume:
+            # 因为保存的优化器含有两组param_groups，要加载已有的优化器，也需要定义两组param_groups
+            self.unfreeze_encoder()
+            self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
             self.load_checkpoint()
-            self.optimizer.param_groups['initial_lr'] = self.lr
             # 重置学习率在，load_checkpoint中会加载self.lr，但是self.optimizer中的lr还是初始化值，所以需要覆盖学习率
+            for index, param_group in enumerate(self.optimizer.param_groups):
+                param_group['initial_lr'] = self.lr[index]
         
         stage1_epoches = self.epoch_stage1 - self.start_epoch
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches)
@@ -141,6 +158,14 @@ class Train(object):
         for epoch in range(self.start_epoch, self.epoch_stage1):
             epoch += 1
             self.unet.train(True)
+            # 到特定的epoch，解冻模型并将参数添加到优化器中；不能直接初始化优化器，否则的话中间变量会消失(例如冲量信息等)，影响模型效果
+            # see https://discuss.pytorch.org/t/how-the-pytorch-freeze-network-in-some-layers-only-the-rest-of-the-training/7088/12 for more information
+            if epoch == (self.epoch_stage1_freeze+1):
+                self.unfreeze_encoder(epoch)
+                # 会指定一个初始学习率，所以需要手动覆盖第二组学习率等于第一组学习率，此时CosineAnnealingLR会将该学习率作为initial_lr
+                self.optimizer.add_param_group({'params':self.unet.module.backbone.parameters()})
+                self.optimizer.param_groups[1]['lr'] = self.optimizer.param_groups[0]['lr']
+                # self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # Error,会重置优化器
             
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
@@ -192,13 +217,14 @@ class Train(object):
             lr_scheduler.step()
 
     def train_stage2(self, index):
-        self.optimizer = optim.Adam(self.unet.module.parameters(), 5e-5 ,[self.beta1, self.beta2])
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), 5e-5 ,[self.beta1, self.beta2])
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             # 若第二个阶段训练一半，要重新加载
             if self.resume.split('_')[-3] == '2':
                 self.load_checkpoint(load_optimizer=True) # 当load_optimizer为True会重新加载学习率和优化器
-                self.optimizer.param_groups['lr'] = self.lr
+                for index, param_group in enumerate(self.optimizer.param_groups):
+                        param_group['lr'] = self.lr[index]
 
             # 若第一阶段结束后没有直接进行第二个阶段，中间暂停了
             elif self.resume.split('_')[-3] == '1':

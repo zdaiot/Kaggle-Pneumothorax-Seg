@@ -1,6 +1,5 @@
 import argparse
 import os,glob
-from solver import Train
 from datasets.siim import get_loader
 from torch.backends import cudnn
 import random
@@ -12,6 +11,12 @@ from argparse import Namespace
 from sklearn.model_selection import KFold, StratifiedKFold
 import numpy as np
 import pickle
+
+FREEZE = False
+if FREEZE:
+    from solver_freeze import Train
+else:
+    from solver import Train
 
 
 def main(config):
