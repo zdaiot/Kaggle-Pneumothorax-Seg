@@ -24,7 +24,8 @@ conda install albumentations -c albumentations
 - [x] lr decay - cos annealing(matters a lot)
 - [x] CLAHE for every picture(matters a little)
 - [ ] Average each result of cross-validation 
-- [ ] leak
+- [ ] Stratified K-fold
+- [ ] leak, TTA
 
 ## Dataset
 Creat dataset soft links in the following directories.
@@ -46,6 +47,11 @@ CUDA_VISIBLE_DEVICES=0 python main.py
 use all gpu:
 ```
 python main.py
+```
+
+run all folds
+```
+python train_sfold.py
 ```
 
 ## Results

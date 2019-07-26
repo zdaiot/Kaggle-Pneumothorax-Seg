@@ -140,6 +140,9 @@ class Train(object):
             self.unfreeze_encoder()
             self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
             self.load_checkpoint()
+            # 重置学习率
+            for index, param_group in enumerate(self.optimizer.param_groups):
+                param_group['lr'] = self.lr[index]
         
         stage1_epoches = self.epoch_stage1 - self.start_epoch
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches)
@@ -151,8 +154,10 @@ class Train(object):
             # see https://discuss.pytorch.org/t/how-the-pytorch-freeze-network-in-some-layers-only-the-rest-of-the-training/7088/12 for more information
             if epoch == (self.epoch_stage1_freeze+1):
                 self.unfreeze_encoder(epoch)
+                # 会指定一个初始学习率，所以需要手动覆盖第二组学习率等于第一组学习率
                 self.optimizer.add_param_group({'params':self.unet.module.backbone.parameters()})
-                # self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
+                self.optimizer.param_groups[1]['lr'] = self.optimizer.param_groups[0]['lr']
+                # self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # Error,会重置优化器
             
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
@@ -189,7 +194,8 @@ class Train(object):
                 is_best = True
                 self.max_dice = dice_mean
             else: is_best = False
-
+            
+            self.lr = lr_scheduler.get_lr()
             state = {'epoch': epoch,
                 'state_dict': self.unet.module.state_dict(),
                 'max_dice': self.max_dice,
@@ -201,21 +207,31 @@ class Train(object):
             # 学习率衰减
             print('Lr decaying...')
             lr_scheduler.step()
-            self.lr = lr_scheduler.get_lr()
 
     def train_stage2(self, index):
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             self.freeze_encoder()
-            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
+            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr[0], [self.beta1, self.beta2])
             self.unfreeze_encoder()
             self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
             
             self.load_checkpoint()
+            # 覆盖学习率
+            for index, param_group in enumerate(self.optimizer.param_groups):
+                param_group['lr'] = self.lr[index]
+
             if self.mode == 'train_stage2':
                 self.start_epoch = 0
+                # 重置学习率
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = 5e-5
+
         # 第一阶段结束后直接进行第二个阶段，中间并没有暂停
         else:
+            # 重置学习率
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = 5e-5
             self.start_epoch = 0
 
         stage2_epoches = self.epoch_stage2 - self.start_epoch
@@ -270,7 +286,8 @@ class Train(object):
                 is_best = True
                 self.max_dice = dice_mean
             else: is_best = False
-
+            
+            self.lr = lr_scheduler.get_lr()            
             state = {'epoch': epoch,
                 'state_dict': self.unet.module.state_dict(),
                 'max_dice': self.max_dice,
@@ -282,7 +299,6 @@ class Train(object):
             # 学习率衰减
             print('Lr decaying...')
             lr_scheduler.step()
-            self.lr = lr_scheduler.get_lr()
             
 
     def validation(self):
