@@ -62,8 +62,9 @@ class Test(object):
         preds = np.zeros([len(sample_df), self.image_size, self.image_size])
 
         for fold in range(n_splits):
+
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, fold))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 2))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
@@ -90,8 +91,8 @@ class Test(object):
                     pred = pred.detach().cpu().numpy()
                     preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
             # 如果取消注释，则只测试一个fold的
-            # n_splits = 1
-            # break
+            n_splits = 1
+            break
 
         rle = []
         count_has_mask = 0
@@ -138,4 +139,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.45, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.35, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=csv_path, test_image_path=test_image_path)

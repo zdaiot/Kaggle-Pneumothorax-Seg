@@ -87,7 +87,7 @@ if __name__ == "__main__":
     masks_folder = os.path.join(base_dir, 'mask')
     model_name = 'unet_resnet34'
     # stage表示测试第几阶段的代码，对应不同的image_size，fold表示为交叉验证的第几个
-    stage, fold = 1, 0
+    stage, fold = 1, 2
     if stage == 1:
         image_size = 512
     elif stage == 2:
