@@ -142,7 +142,7 @@ class Train(object):
             self.load_checkpoint()
             # 重置学习率
             for index, param_group in enumerate(self.optimizer.param_groups):
-                param_group['lr'] = self.lr[index]
+                param_group['initial_lr'] = self.lr[index]
         
         stage1_epoches = self.epoch_stage1 - self.start_epoch
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches)
@@ -212,29 +212,30 @@ class Train(object):
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             self.freeze_encoder()
-            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr[0], [self.beta1, self.beta2])
+            self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
             self.unfreeze_encoder()
             self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
             
             self.load_checkpoint()
             # 覆盖学习率
             for index, param_group in enumerate(self.optimizer.param_groups):
-                param_group['lr'] = self.lr[index]
+                param_group['initial_lr'] = self.lr[index]
 
             if self.mode == 'train_stage2':
                 self.start_epoch = 0
-                # 重置学习率
+                # 重置学习率，CosineAnnealingLR是以param_froup中的initial_lr为初始学习率进行衰减的，所以必须重置该值
                 for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = 5e-5
+                    param_group['initial_lr'] = 5e-5
 
         # 第一阶段结束后直接进行第二个阶段，中间并没有暂停
         else:
             # 重置学习率
             for param_group in self.optimizer.param_groups:
-                param_group['lr'] = 5e-5
+                param_group['initial_lr'] = 5e-5
             self.start_epoch = 0
 
         stage2_epoches = self.epoch_stage2 - self.start_epoch
+        # 实例化CosineAnnealingLR类的同时会使用initial_lr覆盖optimizer中各参数组的lr
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage2_epoches)
 
         for epoch in range(self.start_epoch, self.epoch_stage2):
