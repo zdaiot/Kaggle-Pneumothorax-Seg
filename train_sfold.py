@@ -61,7 +61,7 @@ def main(config):
 
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
-        if index <2 or index > 3:
+        if index < 4:
             print("Fold {} passed".format(index))
             continue
         train_image = [images_path[x] for x in train_index]
@@ -123,9 +123,19 @@ if __name__ == '__main__':
         config = Namespace(**config)
     else:
         parser = argparse.ArgumentParser()
-        # stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
-        # 当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
-        # 当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
+        '''
+        stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
+        当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
+        当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
+        
+        若第一阶段和第二阶段均训练，则two_stage为true，并设置相应的epoch_stage1、epoch_stage2，mode设置为train
+        若只训练第一阶段，则two_stage改为False，并设置epoch_stage2=0，mode设置为train
+        若只训练第二阶段，则two_stage为true，并设置相应的resume权重名称，mode设置为train_stage2
+        训练过程中断了，则设置相应的resume权重名称
+        
+        若选第一阶段的阈值，则mode设置为choose_threshold，two_stage设置为False
+        若选第二阶段的阈值，则mode设置为choose_threshold，two_stage设置为True
+        '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
@@ -142,8 +152,8 @@ if __name__ == '__main__':
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set
-        parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--resume', type=str, default='unet_resnet34_1_4_best.pth', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--mode', type=str, default='train_stage2', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
 
         # model hyper-parameters

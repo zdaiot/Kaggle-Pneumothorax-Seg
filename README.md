@@ -25,6 +25,7 @@ conda install albumentations -c albumentations
 - [x] CLAHE for every picture(matters a little)
 - [ ] Average each result of cross-validation 
 - [ ] Stratified K-fold
+- [ ] stage2 init lr and optimizer
 - [ ] leak, TTA
 
 ## Dataset
