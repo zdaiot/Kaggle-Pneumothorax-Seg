@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from utils.mask_functions import write_txt
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
 from models.linknet import LinkNet34
+from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
 import csv
 import matplotlib.pyplot as plt
 import tqdm
@@ -73,6 +74,8 @@ class Train(object):
             self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
+        elif self.model_type == 'deeplabv3plus':
+            self.unet = DeepLabV3Plus(num_classes=self.output_ch)
 
         if torch.cuda.is_available():
             self.unet = torch.nn.DataParallel(self.unet)
