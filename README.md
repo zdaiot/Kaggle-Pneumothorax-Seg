@@ -15,7 +15,7 @@ conda install albumentations -c albumentations
 * Install [TensorBoard for Pytorch](https://pytorch.org/docs/stable/tensorboard.html)
 ```
 pip install tb-nightly
-pip install feature
+pip install future
 ```
 
 ## TODO

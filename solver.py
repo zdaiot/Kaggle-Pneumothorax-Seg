@@ -200,7 +200,7 @@ class Train(object):
 
             self.writer.add_scalar('Stage1_val_loss', loss_mean, epoch)
             self.writer.add_scalar('Stage1_val_dice', dice_mean, epoch)
-            self.writer.add_scalar('Stage1_lr', self.lr, epoch)
+            self.writer.add_scalar('Stage1_lr', self.lr[0], epoch)
 
             # 学习率衰减
             lr_scheduler.step()
@@ -302,7 +302,7 @@ class Train(object):
 
             self.writer.add_scalar('Stage2_val_loss', loss_mean, epoch)
             self.writer.add_scalar('Stage2_val_dice', dice_mean, epoch)
-            self.writer.add_scalar('Stage2_lr', self.lr, epoch)
+            self.writer.add_scalar('Stage2_lr', self.lr[0], epoch)
 
             # 学习率衰减
             lr_scheduler.step()
