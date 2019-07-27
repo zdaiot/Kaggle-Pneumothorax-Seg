@@ -27,7 +27,7 @@ def main(config):
         return
 
     # 配置随机学习率，随机权重衰减，保存路径等
-    lr = random.random() * 0.0005 + 0.0000005
+    lr = 0.001
     augmentation_prob = random.random() * 0.7
     decay_ratio = random.random() * 0.8
     decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
@@ -66,9 +66,9 @@ def main(config):
 
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
-        if index < 4:
-            print("Fold {} passed".format(index))
-            continue
+        # if index < 4:
+        #     print("Fold {} passed".format(index))
+        #     continue
         train_image = [images_path[x] for x in train_index]
         train_mask = [masks_path[x] for x in train_index]
         val_image = [images_path[x] for x in val_index]
@@ -143,7 +143,7 @@ if __name__ == '__main__':
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=40, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=60, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=3, help='How many epoch freezes the encoder layer in the first stage')
 
@@ -159,7 +159,7 @@ if __name__ == '__main__':
         # model set
         parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
         parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
-        parser.add_argument('--model_type', type=str, default='linknet', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus')
+        parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus')
 
         # model hyper-parameters
         parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')

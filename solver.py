@@ -129,10 +129,10 @@ class Train(object):
         '''是否加载之前训练的参数；只考虑保存的参数文件中start_epoch大于epoch_stage1_freeze的情况
         若从头训练的话，需要冻结编码层，且初始化迭代器；否则的话，从文件中加载即可。
         '''
-        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, [self.beta1, self.beta2])
+        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, weight_decay=5e-4)
         if self.resume:
             self.load_checkpoint()
-            self.optimizer.param_groups['initial_lr'] = self.lr
+            self.optimizer.param_groups[0]['lr'] = self.lr
             # 重置学习率在，load_checkpoint中会加载self.lr，但是self.optimizer中的lr还是初始化值，所以需要覆盖学习率
         
         stage1_epoches = self.epoch_stage1 - self.start_epoch
@@ -192,13 +192,13 @@ class Train(object):
             lr_scheduler.step()
 
     def train_stage2(self, index):
-        self.optimizer = optim.Adam(self.unet.module.parameters(), 5e-5 ,[self.beta1, self.beta2])
+        self.optimizer = optim.Adam(self.unet.module.parameters(), 5e-5, weight_decay=5e-4)
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             # 若第二个阶段训练一半，要重新加载
             if self.resume.split('_')[-3] == '2':
                 self.load_checkpoint(load_optimizer=True) # 当load_optimizer为True会重新加载学习率和优化器
-                self.optimizer.param_groups['lr'] = self.lr
+                self.optimizer.param_groups[0]['lr'] = self.lr
 
             # 若第一阶段结束后没有直接进行第二个阶段，中间暂停了
             elif self.resume.split('_')[-3] == '1':

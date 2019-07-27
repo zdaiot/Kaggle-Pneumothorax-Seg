@@ -45,6 +45,15 @@ class DatasetsStatic(object):
         
         return images_path, masks_path, masks_bool
 
+    def mask_average_num(self):
+        """统计数据集掩膜的平均大小
+        """
+    
+    def mask_pixes_num_static(self):
+        """统计数据集掩膜分布情况
+        """
+
+
     def cal_mask_pixes(self, mask_path):
         """计算样本的标记的掩膜所包含的像素的总数
         Args:

@@ -9,6 +9,7 @@ from torch import optim
 from tqdm import tqdm_notebook, tqdm
 from utils.evaluation import *
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
+from models.linknet import LinkNet34
 import pandas as pd
 from utils.mask_functions import rle2mask, mask2rle, mask_to_rle
 import matplotlib.pyplot as plt
@@ -43,6 +44,8 @@ class Test(object):
             self.unet = R2AttU_Net(img_ch=3, output_ch=1, t=self.t)
         elif self.model_type == 'unet_resnet34':
             self.unet = Unet(backbone_name='resnet34', classes=1)
+        elif self.model_type == 'linknet':
+            self.unet = LinkNet34(num_classes=1)
         print('build model done！')
 
         self.unet.to(self.device)
@@ -64,7 +67,7 @@ class Test(object):
         for fold in range(n_splits):
 
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 2))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 4))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
@@ -131,7 +134,7 @@ if __name__ == "__main__":
     std = (0.229, 0.224, 0.225)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'unet_resnet34'
+    model_name = 'linknet'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, n_splits = 1, 5
     if stage == 1:
@@ -139,4 +142,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.35, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.35, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=20, csv_path=csv_path, test_image_path=test_image_path)

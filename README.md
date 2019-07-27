@@ -27,6 +27,7 @@ conda install albumentations -c albumentations
 - [ ] Stratified K-fold
 - [ ] stage2 init lr and optimizer
 - [ ] leak, TTA
+- [ ] weight decay
 
 ## Dataset
 Creat dataset soft links in the following directories.

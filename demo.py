@@ -9,6 +9,7 @@ import cv2
 from backboned_unet import Unet
 import torch
 from models.network import U_Net
+from models.linknet import LinkNet34
 from albumentations import CLAHE
 
 
@@ -60,6 +61,8 @@ def demo(model_name, checkpoint_path, images_path, masks_path, input_size=512, t
         model = U_Net(img_ch=3, output_ch=1)
     elif model_name == 'unet_resnet34':
         model = Unet(backbone_name='resnet34', classes=1)
+    elif model_name == 'linknet':
+        model = LinkNet34(num_classes=1)
     else:
         raise ValueError('The model should be one of [Unet/unet_resnet34]')
     
@@ -85,14 +88,14 @@ if __name__ == "__main__":
     base_dir = 'img'
     images_folder = os.path.join(base_dir, 'image')
     masks_folder = os.path.join(base_dir, 'mask')
-    model_name = 'unet_resnet34'
+    model_name = 'linknet'
     # stage表示测试第几阶段的代码，对应不同的image_size，fold表示为交叉验证的第几个
-    stage, fold = 1, 2
+    stage, fold = 1, 4
     if stage == 1:
         image_size = 512
     elif stage == 2:
         image_size = 1024
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}_best.pth'.format(stage, fold))
-    demo(model_name, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.4)
+    demo(model_name, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.5)
 
     
