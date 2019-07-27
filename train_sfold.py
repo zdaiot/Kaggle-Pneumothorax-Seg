@@ -26,15 +26,11 @@ def main(config):
         print('Your input for model_type was %s' % config.model_type)
         return
 
-    # 配置随机学习率，随机权重衰减，保存路径等
-    lr = 0.001
-    augmentation_prob = random.random() * 0.7
+    # 配置随机权重衰减，保存路径等
     decay_ratio = random.random() * 0.8
     decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
-
-    config.augmentation_prob = augmentation_prob
-    config.lr = lr
     config.num_epochs_decay = decay_epoch
+
     config.save_path = config.model_path + '/' + config.model_type
     if not os.path.exists(config.save_path):
         print('Making pth folder...')
@@ -142,10 +138,10 @@ if __name__ == '__main__':
         若选第二阶段的阈值，则mode设置为choose_threshold，two_stage设置为True
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
-        parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
+        parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=40, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=60, help='How many epoch in the first stage')
-        parser.add_argument('--epoch_stage1_freeze', type=int, default=3, help='How many epoch freezes the encoder layer in the first stage')
+        parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
         parser.add_argument('--batch_size_stage2', type=int, default=4, help='batch size in the second stage')
@@ -167,10 +163,8 @@ if __name__ == '__main__':
         parser.add_argument('--output_ch', type=int, default=1)
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
-        parser.add_argument('--lr', type=float, default=0.0002)
-        parser.add_argument('--beta1', type=float, default=0.5)  # momentum1 in Adam
-        parser.add_argument('--beta2', type=float, default=0.999)  # momentum2 in Adam
-        parser.add_argument('--augmentation_prob', type=float, default=0.4) # TODO
+        parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
+        parser.add_argument('--lr_stage2', type=float, default=0.0004, help='init lr in stage2')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')

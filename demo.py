@@ -11,9 +11,10 @@ import torch
 from models.network import U_Net
 from models.linknet import LinkNet34
 from albumentations import CLAHE
+from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
 
 
-def detect(model, image_path, input_size=224, threshold=0.6, cuda=True):
+def detect(model, mean, std, image_path, input_size=224, threshold=0.6, cuda=True):
     image = Image.open(image_path).convert('RGB')
     image_raw = image.resize((input_size, input_size))
 
@@ -24,7 +25,7 @@ def detect(model, image_path, input_size=224, threshold=0.6, cuda=True):
 
     resize = transforms.Resize(input_size)(image)
     to_tensor = transforms.ToTensor()(resize)
-    normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))(to_tensor)
+    normalize = transforms.Normalize(mean, std)(to_tensor)
     
     image = torch.unsqueeze(normalize, dim=0)
 
@@ -56,13 +57,15 @@ def combine_display(image_raw, mask, pred, title_diplay):
 
     plt.show()
 
-def demo(model_name, checkpoint_path, images_path, masks_path, input_size=512, threshold=0.25, cuda=True):
+def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_size=512, threshold=0.25, cuda=True):
     if model_name == 'U_Net':
         model = U_Net(img_ch=3, output_ch=1)
     elif model_name == 'unet_resnet34':
         model = Unet(backbone_name='resnet34', classes=1)
     elif model_name == 'linknet':
         model = LinkNet34(num_classes=1)
+    elif model_name == 'deeplabv3plus':
+        model = DeepLabV3Plus(num_classes=1)
     else:
         raise ValueError('The model should be one of [Unet/unet_resnet34]')
     
@@ -76,7 +79,7 @@ def demo(model_name, checkpoint_path, images_path, masks_path, input_size=512, t
     images = os.listdir(images_path)
     for image in images:
         image_path = os.path.join(images_path, image)
-        image_raw, pred_mask = detect(model, image_path, input_size, threshold, cuda)
+        image_raw, pred_mask = detect(model, mean, std, image_path, input_size, threshold, cuda)
 
         mask_path = os.path.join(masks_path, image.replace('jpg', 'jpg'))
         mask = Image.open(mask_path).resize((input_size, input_size))
@@ -89,6 +92,12 @@ if __name__ == "__main__":
     images_folder = os.path.join(base_dir, 'image')
     masks_folder = os.path.join(base_dir, 'mask')
     model_name = 'linknet'
+
+    # mean = (0.485, 0.456, 0.406)
+    # std = (0.229, 0.224, 0.225)
+    mean = (0.490, 0.490, 0.490)
+    std = (0.229, 0.229, 0.229)
+
     # stage表示测试第几阶段的代码，对应不同的image_size，fold表示为交叉验证的第几个
     stage, fold = 1, 4
     if stage == 1:
@@ -96,6 +105,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}_best.pth'.format(stage, fold))
-    demo(model_name, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.5)
-
-    
+    demo(model_name, mean, std, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.5)

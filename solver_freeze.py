@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import tqdm
 from backboned_unet import Unet
 from utils.loss import GetLoss, FocalLoss, RobustFocalLoss2d
+from torch.utils.tensorboard import SummaryWriter
 
 
 class Train(object):
@@ -39,14 +40,13 @@ class Train(object):
         self.num_epochs_decay = config.num_epochs_decay
 
         # Hyper-parameters
-        self.augmentation_prob = config.augmentation_prob
         self.lr = config.lr
-        self.beta1 = config.beta1
-        self.beta2 = config.beta2
         self.start_epoch, self.max_dice = 0, 0
+        self.lr_stage2 = config.lr_stage2
 
         # save set
         self.save_path = config.save_path
+        self.writer = SummaryWriter(log_dir=self.save_path)
 
         # 配置参数
         self.two_stage = config.two_stage
@@ -110,10 +110,10 @@ class Train(object):
     def save_checkpoint(self, state, stage, index, is_best): 
         # 保存权重，每一epoch均保存一次，若为最优，则复制到最优权重；index可以区分不同的交叉验证 
         pth_path = os.path.join(self.save_path, '%s_%d_%d.pth' % (self.model_type, stage, index))
-        print('Saving Model.')
-        write_txt(self.save_path, 'Saving Model.')
         torch.save(state, pth_path)
         if is_best:
+            print('Saving Best Model.')
+            write_txt(self.save_path, 'Saving Best Model.')
             shutil.copyfile(os.path.join(self.save_path, '%s_%d_%d.pth' % (self.model_type, stage, index)), os.path.join(self.save_path, '%s_%d_%d_best.pth' % (self.model_type, stage, index)))
 
     def load_checkpoint(self, load_optimizer=True):
@@ -142,18 +142,25 @@ class Train(object):
         若从头训练的话，需要冻结编码层，且初始化迭代器；否则的话，从文件中加载即可。
         '''
         self.freeze_encoder()
-        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2])
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, weight_decay=5e-4)
         if self.resume:
             # 因为保存的优化器含有两组param_groups，要加载已有的优化器，也需要定义两组param_groups
             self.unfreeze_encoder()
             self.optimizer.add_param_group({'params': self.unet.module.backbone.parameters()})
             self.load_checkpoint()
-            # 重置学习率在，load_checkpoint中会加载self.lr，但是self.optimizer中的lr还是初始化值，所以需要覆盖学习率
+            '''
+            CosineAnnealingLR：若存在['initial_lr']，则从initial_lr开始衰减；
+            若不存在，则执行CosineAnnealingLR会在optimizer.param_groups中添加initial_lr键值，其值等于lr
+
+            重置初始学习率，在load_checkpoint中会加载优化器，但其中的initial_lr还是之前的，所以需要覆盖为self.lr，让其从self.lr衰减
+            '''
             for index, param_group in enumerate(self.optimizer.param_groups):
                 param_group['initial_lr'] = self.lr[index]
         
         stage1_epoches = self.epoch_stage1 - self.start_epoch
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches)
+        # 防止训练到一半暂停重新训练，日志被覆盖
+        global_step_before = self.start_epoch*len(self.train_loader)
 
         for epoch in range(self.start_epoch, self.epoch_stage1):
             epoch += 1
@@ -162,10 +169,10 @@ class Train(object):
             # see https://discuss.pytorch.org/t/how-the-pytorch-freeze-network-in-some-layers-only-the-rest-of-the-training/7088/12 for more information
             if epoch == (self.epoch_stage1_freeze+1):
                 self.unfreeze_encoder(epoch)
-                # 会指定一个初始学习率，所以需要手动覆盖第二组学习率等于第一组学习率，此时CosineAnnealingLR会将该学习率作为initial_lr
+                # 会指定一个初始学习率，所以需要手动覆盖第二组学习率等于第一组学习率，因为param_groups[1]没initial_lr，所以CosineAnnealingLR会将该学习率作为initial_lr
                 self.optimizer.add_param_group({'params':self.unet.module.backbone.parameters()})
                 self.optimizer.param_groups[1]['lr'] = self.optimizer.param_groups[0]['lr']
-                # self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, [self.beta1, self.beta2]) # Error,会重置优化器
+                # self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr) # Error,会重置优化器
             
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
@@ -190,13 +197,19 @@ class Train(object):
                 for group_ind, param_group in enumerate(self.optimizer.param_groups):
                     params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
 
-                descript = "Train Loss: %.7f, lr: %s" % (epoch_loss / (i + 1), params_groups_lr)
+                # 保存到tensorboard，每一步存储一个
+                self.writer.add_scalar('Stage1_train_loss', loss.item(), global_step_before+i)
+
+                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
                 tbar.set_description(desc=descript)
+            # 更新global_step_before为下次迭代做准备
+            global_step_before += len(tbar)
 
             # Print the log info
-            print('Stage1 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
-            write_txt(self.save_path, 'Stage1 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
+            print('Finish Stage1 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Finish Stage1 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
 
+            # 验证模型，保存权重，并保存日志
             loss_mean, dice_mean = self.validation()
             if dice_mean > self.max_dice: 
                 is_best = True
@@ -212,22 +225,30 @@ class Train(object):
             
             self.save_checkpoint(state, 1, index, is_best)
 
+            self.writer.add_scalar('Stage1_val_loss', loss_mean, epoch)
+            self.writer.add_scalar('Stage1_val_dice', dice_mean, epoch)
+            self.writer.add_scalar('Stage1_lr', self.lr, epoch)
+
             # 学习率衰减
-            print('Lr decaying...')
             lr_scheduler.step()
 
     def train_stage2(self, index):
-        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), 5e-5 ,[self.beta1, self.beta2])
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr_stage2, weight_decay=5e-4)
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             # 若第二个阶段训练一半，要重新加载
-            if self.resume.split('_')[-3] == '2':
+            if self.resume.split('_')[2] == '2':
                 self.load_checkpoint(load_optimizer=True) # 当load_optimizer为True会重新加载学习率和优化器
-                for index, param_group in enumerate(self.optimizer.param_groups):
-                        param_group['lr'] = self.lr[index]
+                '''
+                CosineAnnealingLR：若存在['initial_lr']，则从initial_lr开始衰减；
+                若不存在，则执行CosineAnnealingLR会在optimizer.param_groups中添加initial_lr键值，其值等于lr
+
+                重置初始学习率，在load_checkpoint中会加载优化器，但其中的initial_lr还是之前的，所以需要覆盖为self.lr，让其从self.lr衰减
+                '''
+                self.optimizer.param_groups[0]['initial_lr'] = self.lr
 
             # 若第一阶段结束后没有直接进行第二个阶段，中间暂停了
-            elif self.resume.split('_')[-3] == '1':
+            elif self.resume.split('_')[2] == '1':
                 self.load_checkpoint(load_optimizer=False)
                 self.start_epoch = 0
 
@@ -235,8 +256,10 @@ class Train(object):
         else:
             self.start_epoch = 0
 
+        # 防止训练到一半暂停重新训练，日志被覆盖
+        global_step_before = self.start_epoch*len(self.train_loader)
+
         stage2_epoches = self.epoch_stage2 - self.start_epoch
-        # 实例化CosineAnnealingLR类的同时会使用initial_lr覆盖optimizer中各参数组的lr
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage2_epoches)
 
         for epoch in range(self.start_epoch, self.epoch_stage2):
@@ -276,13 +299,19 @@ class Train(object):
                 for group_ind, param_group in enumerate(self.optimizer.param_groups):
                     params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
 
-                descript = "Train Loss: %.7f, lr: %s" % (epoch_loss / (i + 1), params_groups_lr)
+                # 保存到tensorboard，每一步存储一个
+                self.writer.add_scalar('Stage2_train_loss', loss.item(), global_step_before+i)
+
+                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
                 tbar.set_description(desc=descript)
+            # 更新global_step_before为下次迭代做准备
+            global_step_before += len(tbar)
 
             # Print the log info
-            print('Stage2 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
-            write_txt(self.save_path, 'Stage2 Epoch [%d/%d], Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
+            print('Finish Stage2 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Finish Stage2 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
 
+            # 验证模型，保存权重，并保存日志
             loss_mean, dice_mean = self.validation()
             if dice_mean > self.max_dice: 
                 is_best = True
@@ -298,8 +327,11 @@ class Train(object):
             
             self.save_checkpoint(state, 2, index, is_best)
 
+            self.writer.add_scalar('Stage2_val_loss', loss_mean, epoch)
+            self.writer.add_scalar('Stage2_val_dice', dice_mean, epoch)
+            self.writer.add_scalar('Stage2_lr', self.lr, epoch)
+
             # 学习率衰减
-            print('Lr decaying...')
             lr_scheduler.step()
             
 

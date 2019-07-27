@@ -1,6 +1,5 @@
 import argparse
 import os,glob
-from solver import Train
 from datasets.siim import get_loader
 from torch.backends import cudnn
 import random
@@ -10,24 +9,28 @@ from utils.mask_functions import write_txt
 from argparse import Namespace
 from sklearn.model_selection import KFold
 import numpy as np
+import pickle
+
+FREEZE = False
+if FREEZE:
+    from solver_freeze import Train
+else:
+    from solver import Train
 
 
 def main(config):
     cudnn.benchmark = True
-    if config.model_type not in ['U_Net', 'R2U_Net', 'AttU_Net', 'R2AttU_Net', 'unet_resnet34']:
+    if config.model_type not in ['U_Net', 'R2U_Net', 'AttU_Net', 'R2AttU_Net', 'unet_resnet34', 'linknet', 'deeplabv3plus']:
         print('ERROR!! model_type should be selected in U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
         print('Your input for model_type was %s' % config.model_type)
         return
 
     # 配置随机学习率，随机权重衰减，保存路径等
-    lr = random.random() * 0.0005 + 0.0000005
-    augmentation_prob = random.random() * 0.7
+    config.lr = random.random() * config.lr + 0.0000005
     decay_ratio = random.random() * 0.8
     decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
-
-    config.augmentation_prob = augmentation_prob
-    config.lr = lr
     config.num_epochs_decay = decay_epoch
+
     config.save_path = config.model_path + '/' + config.model_type
     if not os.path.exists(config.save_path):
         print('Making pth folder...')
@@ -109,12 +112,22 @@ if __name__ == '__main__':
         config = Namespace(**config)
     else:
         parser = argparse.ArgumentParser()
-        # stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
-        # 当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
-        # 当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
+        '''
+        stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
+        当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
+        当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
+        
+        若第一阶段和第二阶段均训练，则two_stage为true，并设置相应的epoch_stage1、epoch_stage2，mode设置为train
+        若只训练第一阶段，则two_stage改为False，并设置epoch_stage2=0，mode设置为train
+        若只训练第二阶段，则two_stage为true，并设置相应的resume权重名称，mode设置为train_stage2
+        训练过程中断了，则设置相应的resume权重名称
+        
+        若选第一阶段的阈值，则mode设置为choose_threshold，two_stage设置为False
+        若选第二阶段的阈值，则mode设置为choose_threshold，two_stage设置为True
+        '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
-        parser.add_argument('--image_size_stage1', type=int, default=512, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=40, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=60, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
@@ -130,7 +143,7 @@ if __name__ == '__main__':
         # model set
         parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
         parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
-        parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
+        parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus')
 
         # model hyper-parameters
         parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
@@ -138,10 +151,8 @@ if __name__ == '__main__':
         parser.add_argument('--output_ch', type=int, default=1)
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
-        parser.add_argument('--lr', type=float, default=0.0002)
-        parser.add_argument('--beta1', type=float, default=0.5)  # momentum1 in Adam
-        parser.add_argument('--beta2', type=float, default=0.999)  # momentum2 in Adam
-        parser.add_argument('--augmentation_prob', type=float, default=0.4) # TODO
+        parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
+        parser.add_argument('--lr_stage2', type=float, default=0.0004, help='init lr in stage2')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')

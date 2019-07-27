@@ -12,6 +12,11 @@ pip install .
 conda install -c conda-forge imgaug
 conda install albumentations -c albumentations
 ```
+* Install [TensorBoard for Pytorch](https://pytorch.org/docs/stable/tensorboard.html)
+```
+pip install tb-nightly
+pip install feature
+```
 
 ## TODO
 - [x] unet_resnet34(matters a lot)
@@ -28,6 +33,7 @@ conda install albumentations -c albumentations
 - [ ] stage2 init lr and optimizer
 - [ ] leak, TTA
 - [ ] weight decay
+- [ ] tensorboard
 
 ## Dataset
 Creat dataset soft links in the following directories.
@@ -41,20 +47,28 @@ ln -s ../../../input/train-rle.csv train-rle.csv
 ```
 
 ## How to run
-ues one gpu:
+ues one gpu for K-fold:
 ```
 CUDA_VISIBLE_DEVICES=0 python main.py
 ```
 
-use all gpu:
+use all gpu for K-fold:
 ```
 python main.py
 ```
 
-run all folds
+run all folds for Stratified K-fold
 ```
 python train_sfold.py
 ```
+
+The difference between train_sfold.py and main.py is that the former is Stratified K fold, while the latter is ordinary K-fold.
+
+The difference between solver_freeze.py and solver.py is that the former considers freezing the encoding part in the first stage, while the latter does not.
+
+Please note that
+- solver_freeze.py in both main.py and train_sfold.py are only work for pretrained unet_resnet34. 
+- solver.py in both main.py and train_sfold.py are work for all model
 
 ## Results
 |backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|sum|score|

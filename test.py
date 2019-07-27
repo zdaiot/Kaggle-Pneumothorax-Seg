@@ -10,6 +10,7 @@ from tqdm import tqdm_notebook, tqdm
 from utils.evaluation import *
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
 from models.linknet import LinkNet34
+from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
 import pandas as pd
 from utils.mask_functions import rle2mask, mask2rle, mask_to_rle
 import matplotlib.pyplot as plt
@@ -46,6 +47,8 @@ class Test(object):
             self.unet = Unet(backbone_name='resnet34', classes=1)
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=1)
+        elif self.model_type == 'deeplabv3plus':
+            self.unet = DeepLabV3Plus(num_classes=1)
         print('build model done！')
 
         self.unet.to(self.device)
@@ -130,8 +133,10 @@ class Test(object):
 
 
 if __name__ == "__main__":
-    mean = (0.485, 0.456, 0.406)
-    std = (0.229, 0.224, 0.225)
+    # mean = (0.485, 0.456, 0.406)
+    # std = (0.229, 0.224, 0.225)
+    mean = (0.490, 0.490, 0.490)
+    std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'linknet'
