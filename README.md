@@ -62,9 +62,11 @@ run all folds for Stratified K-fold
 python train_sfold.py
 ```
 
-The difference between train_sfold.py and main.py is that the former is Stratified K fold, while the latter is ordinary K-fold.
+The differences between train_sfold.py and main.py are
+- the former uses Stratified K fold and Fixed lr, while the latter uses K-fold and random lr
 
-The difference between solver_freeze.py and solver.py is that the former considers freezing the encoding part in the first stage, while the latter does not.
+The difference between solver_freeze.py and solver.py are:
+- the former considers freezing the encoding part in the first stage, while the latter does not.
 
 Please note that
 - solver_freeze.py in both main.py and train_sfold.py are only work for pretrained unet_resnet34. 

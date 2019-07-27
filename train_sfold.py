@@ -146,7 +146,7 @@ if __name__ == '__main__':
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
         parser.add_argument('--batch_size_stage2', type=int, default=4, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
-        parser.add_argument('--epoch_stage2_accumulation', type=int, default=3, help='How many epoch gradients accumulate in the second stage')
+        parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
         parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method in train set')
@@ -163,8 +163,8 @@ if __name__ == '__main__':
         parser.add_argument('--output_ch', type=int, default=1)
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
-        parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
-        parser.add_argument('--lr_stage2', type=float, default=0.0004, help='init lr in stage2')
+        parser.add_argument('--lr', type=float, default=0.0005, help='init lr in stage1')
+        parser.add_argument('--lr_stage2', type=float, default=0.0001, help='init lr in stage2')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')
