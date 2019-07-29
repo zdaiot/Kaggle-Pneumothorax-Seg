@@ -39,30 +39,46 @@ def one_hot(target, class_num):
 
     return target_oh
 
+# reference: https://github.com/asanakoy/kaggle_carvana_segmentation
+def dice_loss(preds, trues, weight=None, is_average=True):
+    num = preds.size(0)
+    preds = preds.view(num, -1)
+    trues = trues.view(num, -1)
+    if weight is not None:
+        w = torch.autograd.Variable(weight).view(num, -1)
+        preds = preds * w
+        trues = trues * w
+    intersection = (preds * trues).sum(1)
+    scores = 2. * (intersection + 1) / (preds.sum(1) + trues.sum(1) + 1)
+
+    if is_average:
+        score = scores.sum() / num
+        return torch.clamp(score, 0., 1.)
+    else:
+        return scores
+
+def dice_clamp(preds, trues, is_average=True):
+    preds = torch.round(preds)
+    return dice_loss(preds, trues, is_average=is_average)
 
 class DiceLoss(nn.Module):
-    """二分类 dice loss
     """
-    def __init__(self, sigmoid_flag=True):
-        super(DiceLoss, self).__init__()
-        self.sigmoid_flag = sigmoid_flag
+    """
+    def __init__(self, size_average=True):
+        super().__init__()
+        self.size_average = size_average
 
-    def forward(self, input, target):
-        Num = input.size(0)
-        smooth = 1 # smooth确保分母不为0，同时具有防止过拟合的作用
+    def forward(self, input, target, weight=None):
+        return 1 - dice_loss(F.sigmoid(input), target, weight=weight, is_average=self.size_average)
 
-        if self.sigmoid_flag:
-            input = torch.sigmoid(input)
-        
-        input_flat = input.contiguous().view(Num, -1)
-        target_flat = target.contiguous().view(Num, -1)
+class BCEDiceLoss(nn.Module):
+    def __init__(self, size_average=True):
+        super().__init__()
+        self.size_average = size_average
+        self.dice = DiceLoss(size_average=size_average)
 
-        intersection = (input_flat * target_flat).sum(1)
-        union = input_flat.sum(1) + target_flat.sum(1)
-        loss = (2.0 * intersection + smooth) / (union + smooth)
-        loss = 1 - loss.sum(0) / Num
-
-        return loss
+    def forward(self, input, target, weight=None):
+        return nn.modules.loss.BCEWithLogitsLoss(size_average=self.size_average, weight=weight)(input, target) + self.dice(input, target, weight=weight)
 
 
 class MultiDiceLoss(nn.Module):

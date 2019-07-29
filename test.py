@@ -73,7 +73,7 @@ class Test(object):
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
-            self.unet.train(False)
+            self.unet.eval()
             
             with torch.no_grad():
                 # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
@@ -104,8 +104,10 @@ class Test(object):
         preds_average = preds/n_splits
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             file = row['ImageId']
+
+            pred = np.where(pred>threshold, 1, 0)
             pred = cv2.resize(preds_average[index,...],(1024, 1024))
-            pred = np.where(pred>threshold, 1, 0)      
+
             if np.sum(pred) < less_than_sum:
                 pred[:] = 0
             encoding = mask_to_rle(pred.T, 1024, 1024)
@@ -146,4 +148,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.35, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=20, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.35, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2000, csv_path=csv_path, test_image_path=test_image_path)

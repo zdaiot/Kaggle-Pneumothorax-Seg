@@ -313,7 +313,7 @@ class Train(object):
     def validation(self):
         # 验证的时候，train(False)是必须的0，设置其中的BN层、dropout等为eval模式
         # with torch.no_grad(): 可以有，在这个上下文管理器中，不反向传播，会加快速度，可以使用较大batch size
-        self.unet.train(False)
+        self.unet.eval()
         tbar = tqdm.tqdm(self.valid_loader)
         loss_sum, dice_sum = 0, 0
         with torch.no_grad(): 
