@@ -48,7 +48,7 @@ class Train(object):
         # save set
         self.save_path = config.save_path
         TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.datetime.now())
-        self.writer = SummaryWriter(log_dir=self.save_path+TIMESTAMP)
+        self.writer = SummaryWriter(log_dir=self.save_path+'/'+TIMESTAMP)
 
         # 配置参数
         self.two_stage = config.two_stage

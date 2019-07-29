@@ -64,7 +64,7 @@ def main(config):
 
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
-        if index < 3:
+        if index < 4:
             print("Fold {} passed".format(index))
             continue
         train_image = [images_path[x] for x in train_index]
