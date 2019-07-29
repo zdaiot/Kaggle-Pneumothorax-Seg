@@ -18,6 +18,15 @@ pip install tb-nightly
 pip install future
 ```
 
+When you run `tensorboard --logdir=checkpoints/unet_resnet34`,  it happens to this error: `ValueError: Duplicate plugins for name projector`, please see [this](https://github.com/pytorch/pytorch/issues/22676)
+```
+I downloaded a test script from https://raw.githubusercontent.com/tensorflow/tensorboard/master/tensorboard/tools/diagnose_tensorboard.py
+I run it and it told me that I have two tensorboards with a different version. Also, it told me how to fix it.
+I followed its instructions and I can make my tensorboard work.
+
+I think this error means that you have two tensorboards installed so the plugin will be duplicated. Another method would be helpful that is to reinstall the python environment using conda.
+```
+
 ## TODO
 - [x] unet_resnet34(matters a lot)
 - [x] data augmentation
@@ -29,11 +38,11 @@ pip install future
 - [x] lr decay - cos annealing(matters a lot)
 - [x] CLAHE for every picture(matters a little)
 - [ ] Average each result of cross-validation 
-- [ ] Stratified K-fold
-- [ ] stage2 init lr and optimizer
+- [x] Stratified K-fold
+- [x] stage2 init lr and optimizer
 - [ ] leak, TTA
-- [ ] weight decay
-- [ ] tensorboard
+- [x] weight decay(When equal to 5e-4, the negative effect, val loss decreases and dice oscillates, the highest is 0.77)
+- [x] tensorboard
 
 ## Dataset
 Creat dataset soft links in the following directories.

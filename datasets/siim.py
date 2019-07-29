@@ -31,10 +31,10 @@ class SIIMDataset(torch.utils.data.Dataset):
         self.image_size = image_size
         # 是否使用数据增强
         self.augmentation_flag = augmentation_flag
-        self.mean = (0.490, 0.490, 0.490)
-        self.std = (0.229, 0.229, 0.229)
-        # self.mean = (0.485, 0.456, 0.406)
-        # self.std = (0.229, 0.224, 0.225)    
+        # self.mean = (0.490, 0.490, 0.490)
+        # self.std = (0.229, 0.229, 0.229)
+        self.mean = (0.485, 0.456, 0.406)
+        self.std = (0.229, 0.224, 0.225)    
 
         # 所有样本和掩膜的名称
         self.image_names = train_image

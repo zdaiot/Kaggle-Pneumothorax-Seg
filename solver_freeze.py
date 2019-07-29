@@ -43,10 +43,12 @@ class Train(object):
         self.lr = config.lr
         self.start_epoch, self.max_dice = 0, 0
         self.lr_stage2 = config.lr_stage2
+        self.weight_decay = config.weight_decay
 
         # save set
         self.save_path = config.save_path
-        self.writer = SummaryWriter(log_dir=self.save_path)
+        TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.datetime.now())
+        self.writer = SummaryWriter(log_dir=self.save_path+TIMESTAMP)
 
         # 配置参数
         self.two_stage = config.two_stage
@@ -142,7 +144,7 @@ class Train(object):
         若从头训练的话，需要冻结编码层，且初始化迭代器；否则的话，从文件中加载即可。
         '''
         self.freeze_encoder()
-        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, weight_decay=5e-4)
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr, weight_decay=self.weight_decay)
         if self.resume:
             # 因为保存的优化器含有两组param_groups，要加载已有的优化器，也需要定义两组param_groups
             self.unfreeze_encoder()
@@ -233,7 +235,7 @@ class Train(object):
             lr_scheduler.step()
 
     def train_stage2(self, index):
-        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr_stage2, weight_decay=5e-4)
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.unet.module.parameters()), self.lr_stage2, weight_decay=self.weight_decay)
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             # 若第二个阶段训练一半，要重新加载

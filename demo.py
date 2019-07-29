@@ -91,17 +91,17 @@ if __name__ == "__main__":
     base_dir = 'img'
     images_folder = os.path.join(base_dir, 'image')
     masks_folder = os.path.join(base_dir, 'mask')
-    model_name = 'linknet'
+    model_name = 'unet_resnet34'
 
-    # mean = (0.485, 0.456, 0.406)
-    # std = (0.229, 0.224, 0.225)
-    mean = (0.490, 0.490, 0.490)
-    std = (0.229, 0.229, 0.229)
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    # mean = (0.490, 0.490, 0.490)
+    # std = (0.229, 0.229, 0.229)
 
     # stage表示测试第几阶段的代码，对应不同的image_size，fold表示为交叉验证的第几个
     stage, fold = 1, 4
     if stage == 1:
-        image_size = 512
+        image_size = 768
     elif stage == 2:
         image_size = 1024
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}_best.pth'.format(stage, fold))

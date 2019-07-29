@@ -10,6 +10,7 @@ from argparse import Namespace
 from sklearn.model_selection import KFold
 import numpy as np
 import pickle
+from datetime import datetime
 
 FREEZE = False
 if FREEZE:
@@ -38,7 +39,8 @@ def main(config):
 
     # 打印配置参数，并输出到文件中
     pprint(config)
-    with codecs.open(config.save_path + '/params.json', 'w', "utf-8") as json_file:
+    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now()) 
+    with codecs.open(config.save_path + '/'+ TIMESTAMP + '.json', 'w', "utf-8") as json_file:
         json.dump({k: v for k, v in config._get_kwargs()}, json_file, ensure_ascii=False)
     json_file.close()
     # write_txt(config.save_path, {k: v for k, v in config._get_kwargs()})
@@ -124,17 +126,20 @@ if __name__ == '__main__':
         
         若选第一阶段的阈值，则mode设置为choose_threshold，two_stage设置为False
         若选第二阶段的阈值，则mode设置为choose_threshold，two_stage设置为True
+
+        第一阶段为768，第二阶段为1024，unet_resnet34时各个电脑可以设置的最大batch size
+        zdaiot:10,6 z840:12,6 mxq:20,8
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=40, help='batch size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=10, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=60, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=4, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
-        parser.add_argument('--epoch_stage2_accumulation', type=int, default=3, help='How many epoch gradients accumulate in the second stage')
+        parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
         parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method in train set')
@@ -152,7 +157,8 @@ if __name__ == '__main__':
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
         parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
-        parser.add_argument('--lr_stage2', type=float, default=0.0004, help='init lr in stage2')
+        parser.add_argument('--lr_stage2', type=float, default=0.00005, help='init lr in stage2')
+        parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')

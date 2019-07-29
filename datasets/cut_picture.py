@@ -3,11 +3,11 @@ import numpy as np
 import cv2,os,glob
 from skimage import exposure
 
-# 切割数据和类标，统计切割后的图片中有多少个含有mask，对数据进行直方图均衡化
+# 切割数据和类标，统计切割后的图片中有多少个含有mask，对数据进行直方图均衡化，但是范围仍在0~255
 def cut_img_mask(data_type):
-    src_path = '../input/{}_images'.format(data_type)
-    save_path = '../input/{}_images_cut/'.format(data_type)
-    save_path_mask = '../input/{}_mask_cut/'.format(data_type)
+    src_path = '../../input/{}_images'.format(data_type)
+    save_path = '../../input/{}_images_cut/'.format(data_type)
+    save_path_mask = '../../input/{}_mask_cut/'.format(data_type)
     pic_list = glob.glob(src_path+'/*.jpg')
 
     if not os.path.exists(save_path):
@@ -52,10 +52,10 @@ def cut_img_mask(data_type):
                 count += 1
     print('count_no_mask:{}, count_mask:{}'.format(count_no_mask, count_mask))
 
-# 切割数据和类标，统计切割后的图片中有多少个含有mask，对数据进行直方图均衡化
+# 切割数据并对数据进行直方图均衡化，但是范围仍在0~255
 def cut_img(data_type):
-    src_path = '../input/{}_images'.format(data_type)
-    save_path = '../input/{}_images_cut/'.format(data_type)
+    src_path = '../../input/{}_images'.format(data_type)
+    save_path = '../../input/{}_images_cut/'.format(data_type)
     pic_list = glob.glob(src_path+'/*.jpg')
 
     if not os.path.exists(save_path):
@@ -84,6 +84,6 @@ def cut_img(data_type):
                 count += 1
 
 if __name__ == "__main__":
-    data_type = 'train'
-    cut_img_mask(data_type) # count_no_mask:163501, count_mask:7299
-    cut_img('test')
+    # cut_img_mask('train') # count_no_mask:163501, count_mask:7299
+    # cut_img('test')
+    cut_img_mask('sample')

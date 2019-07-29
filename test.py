@@ -68,9 +68,8 @@ class Test(object):
         preds = np.zeros([len(sample_df), self.image_size, self.image_size])
 
         for fold in range(n_splits):
-
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 4))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, fold))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
@@ -133,17 +132,17 @@ class Test(object):
 
 
 if __name__ == "__main__":
-    # mean = (0.485, 0.456, 0.406)
-    # std = (0.229, 0.224, 0.225)
-    mean = (0.490, 0.490, 0.490)
-    std = (0.229, 0.229, 0.229)
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    # mean = (0.490, 0.490, 0.490)
+    # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'linknet'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, n_splits = 1, 5
     if stage == 1:
-        image_size = 512
+        image_size = 768
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)

@@ -11,6 +11,7 @@ from argparse import Namespace
 from sklearn.model_selection import KFold, StratifiedKFold
 import numpy as np
 import pickle
+from datetime import datetime
 
 FREEZE = False
 if FREEZE:
@@ -38,7 +39,8 @@ def main(config):
 
     # 打印配置参数，并输出到文件中
     pprint(config)
-    with codecs.open(config.save_path + '/params.json', 'w', "utf-8") as json_file:
+    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now()) 
+    with codecs.open(config.save_path + '/'+ TIMESTAMP + '.json', 'w', "utf-8") as json_file:
         json.dump({k: v for k, v in config._get_kwargs()}, json_file, ensure_ascii=False)
     json_file.close()
     # write_txt(config.save_path, {k: v for k, v in config._get_kwargs()})
@@ -62,9 +64,9 @@ def main(config):
 
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
-        # if index < 4:
-        #     print("Fold {} passed".format(index))
-        #     continue
+        if index < 3:
+            print("Fold {} passed".format(index))
+            continue
         train_image = [images_path[x] for x in train_index]
         train_mask = [masks_path[x] for x in train_index]
         val_image = [images_path[x] for x in val_index]
@@ -136,15 +138,18 @@ if __name__ == '__main__':
         
         若选第一阶段的阈值，则mode设置为choose_threshold，two_stage设置为False
         若选第二阶段的阈值，则mode设置为choose_threshold，two_stage设置为True
+
+        第一阶段为768，第二阶段为1024，unet_resnet34时各个电脑可以设置的最大batch size
+        zdaiot:10,6 z840:12,6 mxq:20,8
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=14, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=1, help='How many epoch in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=10, help='batch size in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=60, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=8, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
@@ -155,7 +160,7 @@ if __name__ == '__main__':
         # model set
         parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
         parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
-        parser.add_argument('--model_type', type=str, default='R2AttU_Net', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus')
+        parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus')
 
         # model hyper-parameters
         parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
@@ -163,8 +168,9 @@ if __name__ == '__main__':
         parser.add_argument('--output_ch', type=int, default=1)
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
-        parser.add_argument('--lr', type=float, default=0.0005, help='init lr in stage1')
-        parser.add_argument('--lr_stage2', type=float, default=0.0001, help='init lr in stage2')
+        parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
+        parser.add_argument('--lr_stage2', type=float, default=0.00005, help='init lr in stage2')
+        parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')

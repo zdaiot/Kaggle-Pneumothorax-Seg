@@ -43,10 +43,12 @@ class Train(object):
         self.lr = config.lr
         self.start_epoch, self.max_dice = 0, 0
         self.lr_stage2 = config.lr_stage2
+        self.weight_decay = config.weight_decay
 
         # save set
         self.save_path = config.save_path
-        self.writer = SummaryWriter(log_dir=self.save_path)
+        TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.datetime.now())
+        self.writer = SummaryWriter(log_dir=self.save_path+TIMESTAMP)
 
         # 配置参数
         self.two_stage = config.two_stage
@@ -126,7 +128,7 @@ class Train(object):
             raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
 
     def train(self, index):
-        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, weight_decay=5e-4)
+        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, weight_decay=self.weight_decay)
         # 若训练到一半暂停了，则需要加载之前训练的参数，并加载之前学习率
         if self.resume:
             self.load_checkpoint(load_optimizer=True)
@@ -206,7 +208,7 @@ class Train(object):
             lr_scheduler.step()
 
     def train_stage2(self, index):
-        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=5e-4)
+        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay)
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             # 若第二个阶段训练一半，要重新加载
