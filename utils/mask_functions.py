@@ -4,8 +4,8 @@ import os
 from datetime import datetime
 
 def write_txt(path, content):
-    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now()) 
-    f = open(os.path.join(path, TIMESTAMP+'.txt'), 'a')
+    # TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now()) 
+    f = open(os.path.join(path, 'log.txt'), 'a')
     if isinstance(content, dict) or isinstance(content, list):
         pprint(content, f)
     else:

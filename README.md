@@ -80,6 +80,45 @@ The difference between solver_freeze.py and solver.py are:
 Please note that
 - solver_freeze.py in both main.py and train_sfold.py are only work for pretrained unet_resnet34. 
 - solver.py in both main.py and train_sfold.py are work for all model
+  
+## Tensorboard
+### different event files
+Tensorboard displays different event files:
+```
+tensorboard --logdir=name1:/path/to/logs/1,name2:/path/to/logs/2
+```
+
+for example, when the files in the checkpoints/unet_resnet34 folder are as follows
+```
+├── run1
+│   └── events.out.tfevents.1564306811.zdkit.25995.0
+├── run2
+│   └── events.out.tfevents.1564324685.zdkit.25995.1
+```
+
+you can run:
+```
+cd checkpoints/unet_resnet34
+tensorboard --logdir=name1:run1,name2:run2
+```
+
+### one event file
+Tensorboard displays one event file:
+```
+tensorboard --logdir=/path/to/logs
+```
+
+for example, when the files in the checkpoints/unet_resnet34 folder are as follows
+```
+├── run1
+│   └── events.out.tfevents.1564306811.zdkit.25995.0
+```
+
+you can run:
+```
+cd checkpoints/unet_resnet34
+tensorboard --logdir=run1
+```
 
 ## Results
 |backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|sum|score|
