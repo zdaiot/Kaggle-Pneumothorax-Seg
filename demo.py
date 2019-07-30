@@ -6,8 +6,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from torchvision import transforms
 import cv2
-from backboned_unet import Unet
 import torch
+from backboned_unet import Unet
+import segmentation_models_pytorch as smp
 from models.network import U_Net
 from models.linknet import LinkNet34
 from albumentations import CLAHE
@@ -61,7 +62,8 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
     if model_name == 'U_Net':
         model = U_Net(img_ch=3, output_ch=1)
     elif model_name == 'unet_resnet34':
-        model = Unet(backbone_name='resnet34', classes=1)
+        # model = Unet(backbone_name='resnet34', classes=1)
+        model = smp.Unet('resnet34', encoder_weights='imagenet', activation=None)
     elif model_name == 'linknet':
         model = LinkNet34(num_classes=1)
     elif model_name == 'deeplabv3plus':

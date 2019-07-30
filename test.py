@@ -11,12 +11,13 @@ from utils.evaluation import *
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
 from models.linknet import LinkNet34
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
+from backboned_unet import Unet
+import segmentation_models_pytorch as smp
 import pandas as pd
 from utils.mask_functions import rle2mask, mask2rle, mask_to_rle
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
 from torchvision import transforms
-from backboned_unet import Unet
 import cv2
 from albumentations import CLAHE
 
@@ -44,7 +45,8 @@ class Test(object):
         elif self.model_type == 'R2AttU_Net':
             self.unet = R2AttU_Net(img_ch=3, output_ch=1, t=self.t)
         elif self.model_type == 'unet_resnet34':
-            self.unet = Unet(backbone_name='resnet34', classes=1)
+            # self.unet = Unet(backbone_name='resnet34', classes=1)
+            self.unet = smp.Unet('resnet34', encoder_weights='imagenet', activation=None)
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=1)
         elif self.model_type == 'deeplabv3plus':
@@ -105,8 +107,8 @@ class Test(object):
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             file = row['ImageId']
 
-            pred = np.where(pred>threshold, 1, 0)
             pred = cv2.resize(preds_average[index,...],(1024, 1024))
+            pred = np.where(pred>threshold, 1, 0)
 
             if np.sum(pred) < less_than_sum:
                 pred[:] = 0

@@ -1,6 +1,9 @@
 code for [kaggle siim-acr-pneumothorax-segmentation](https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation)
 
 ## Requirements
+* Pytorch 1.1.0 
+* Torchvision 0.3.0
+* Python3.7
 * Install [backboned-unet](https://github.com/mkisantal/backboned-unet) first
 ```
 git clone https://github.com/mkisantal/backboned-unet.git
@@ -16,6 +19,10 @@ conda install albumentations -c albumentations
 ```
 pip install tb-nightly
 pip install future
+```
+* Install [segmentation_models.pytorch](https://github.com/qubvel/segmentation_models.pytorch)
+```
+pip install git+https://github.com/qubvel/segmentation_models.pytorch
 ```
 
 When you run `tensorboard --logdir=checkpoints/unet_resnet34`,  it happens to this error: `ValueError: Duplicate plugins for name projector`, please see [this](https://github.com/pytorch/pytorch/issues/22676)

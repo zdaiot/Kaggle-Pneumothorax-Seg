@@ -17,6 +17,7 @@ import tqdm
 from backboned_unet import Unet
 from utils.loss import GetLoss, FocalLoss, RobustFocalLoss2d
 from torch.utils.tensorboard import SummaryWriter
+import segmentation_models_pytorch as smp
 
 
 class Train(object):
@@ -73,7 +74,8 @@ class Train(object):
         elif self.model_type == 'R2AttU_Net':
             self.unet = R2AttU_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
         elif self.model_type == 'unet_resnet34':
-            self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
+            # self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
+            self.unet = smp.Unet('resnet34', encoder_weights='imagenet', activation=None)
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
         elif self.model_type == 'deeplabv3plus':

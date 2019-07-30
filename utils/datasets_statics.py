@@ -47,6 +47,27 @@ class DatasetsStatic(object):
         
         return images_path, masks_path, masks_bool
 
+    def statistical_pixel(self):
+        """按像素点计算所有掩模中正负样本的比例
+        """
+        image_names = os.listdir(self.image_folder)
+        if self.sort_flag:
+            image_names = sorted(image_names)
+        
+        masks_pixes_num = list()
+        for index, image_name in enumerate(image_names):
+            mask_name = image_name.replace('jpg', 'png')
+            mask_path = os.path.join(self.mask_folder, mask_name)
+
+            mask_pixes_num = self.cal_mask_pixes(mask_path)
+            if mask_pixes_num:
+                masks_pixes_num.append(mask_pixes_num)
+            else:
+                masks_pixes_num.append(0)
+        positive_sum = np.sum(masks_pixes_num)
+        negative_sum = len(image_names)*1024*1024 - positive_sum
+        return positive_sum, negative_sum, negative_sum/positive_sum
+
     def mask_pixes_average_num(self):
         """统计每个样本所包含的掩膜的像素的平均数目
 
@@ -137,4 +158,6 @@ if __name__ == "__main__":
     average_num = ds.mask_pixes_average_num()
     print('average num: %d'%(average_num))
 
+    positive_sum, negative_sum, ratio = ds.statistical_pixel()
+    print('positive_sum:{}, negative_sum:{}, ratio:{}'.format(positive_sum, negative_sum, ratio))
     pass
