@@ -9,7 +9,7 @@ from albumentations import (
     RandomBrightness, RandomContrast, RandomGamma,OneOf,
     ToFloat, ShiftScaleRotate,GridDistortion, ElasticTransform, JpegCompression, HueSaturationValue,
     RGBShift, RandomBrightnessContrast, RandomContrast, Blur, MotionBlur, MedianBlur, GaussNoise,CenterCrop,
-    IAAAdditiveGaussianNoise,GaussNoise,Cutout
+    IAAAdditiveGaussianNoise,GaussNoise,Cutout, Rotate,
 )
 
 
@@ -52,9 +52,8 @@ def data_augmentation(original_image, original_mask):
     augmentations = Compose([
         # 翻转
         OneOf([
-                HorizontalFlip(p=0.5),
-                VerticalFlip(p=0.5), 
-                RandomRotate90(p=0.5),   
+                HorizontalFlip(p=0.5), 
+                Rotate(limit=30, p=0.3),   
             ], p=0.75),
         
         # 直方图均衡化

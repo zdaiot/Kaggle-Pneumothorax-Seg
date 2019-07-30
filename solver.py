@@ -14,7 +14,8 @@ from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
 import csv
 import matplotlib.pyplot as plt
 import tqdm
-from backboned_unet import Unet
+
+from models.classify_unet import UnetWithClassify
 from utils.loss import GetLoss, FocalLoss, RobustFocalLoss2d
 from torch.utils.tensorboard import SummaryWriter
 
@@ -31,6 +32,7 @@ class Train(object):
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
         # self.criterion = GetLoss([RobustFocalLoss2d()])
+        self.criterion_classify = torch.nn.BCEWithLogitsLoss()
         self.criterion = torch.nn.BCEWithLogitsLoss()
         self.model_type = config.model_type
         self.t = config.t
@@ -64,23 +66,12 @@ class Train(object):
 
     def build_model(self):
         """Build generator and discriminator."""
-        if self.model_type == 'U_Net':
-            self.unet = U_Net(img_ch=3, output_ch=self.output_ch)
-        elif self.model_type == 'R2U_Net':
-            self.unet = R2U_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
-        elif self.model_type == 'AttU_Net':
-            self.unet = AttU_Net(img_ch=3, output_ch=self.output_ch)
-        elif self.model_type == 'R2AttU_Net':
-            self.unet = R2AttU_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
-        elif self.model_type == 'unet_resnet34':
-            self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
-        elif self.model_type == 'linknet':
-            self.unet = LinkNet34(num_classes=self.output_ch)
-        elif self.model_type == 'deeplabv3plus':
-            self.unet = DeepLabV3Plus(num_classes=self.output_ch)
+        if self.model_type == 'unet_resnet34':
+            self.unet = UnetWithClassify(encoder_name='resnet34', classes=self.output_ch)
 
         if torch.cuda.is_available():
             self.unet = torch.nn.DataParallel(self.unet)
+            self.criterion_classify = self.criterion_classify.cuda()
             self.criterion = self.criterion.cuda()
         self.unet.to(self.device)
 
@@ -151,16 +142,24 @@ class Train(object):
             
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
-            for i, (images, masks) in enumerate(tbar):
+            for i, (images, masks, masks_classes) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                masks_classes = masks_classes.to(self.device)
 
                 # SR : Segmentation Result
-                net_output = self.unet(images)
+                net_output_classes, net_output = self.unet(images)
+                net_output_classes_flat = net_output_classes.view(net_output_classes.size(0), -1)
                 net_output_flat = net_output.view(net_output.size(0), -1)
+
+                masks_classes_flat = masks_classes.view(masks_classes.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
-                loss = self.criterion(net_output_flat, masks_flat)
+
+                classify_loss = self.criterion_classify(net_output_classes_flat, masks_classes_flat)
+                seg_loss = self.criterion(net_output_flat, masks_flat)
+                loss = classify_loss + seg_loss
+
                 epoch_loss += loss.item()
 
                 # Backprop + optimize
@@ -174,8 +173,11 @@ class Train(object):
 
                 # 保存到tensorboard，每一步存储一个
                 self.writer.add_scalar('Stage1_train_loss', loss.item(), global_step_before+i)
+                self.writer.add_scalar('Stage1_classify_loss', classify_loss.item(), global_step_before+i)
+                self.writer.add_scalar('Stage1_seg_loss', seg_loss.item(), global_step_before+i)
 
-                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
+                descript = "Train Loss: %.7f, classify_loss: %.7f, seg_loss: %.7f, lr: %s"  \
+                            % (classify_loss.item(), seg_loss.item(), loss.item(), params_groups_lr)
                 tbar.set_description(desc=descript)
             # 更新global_step_before为下次迭代做准备
             global_step_before += len(tbar)

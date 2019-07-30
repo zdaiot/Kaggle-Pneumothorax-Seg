@@ -60,11 +60,12 @@ class SIIMDataset(torch.utils.data.Dataset):
         if self.augmentation_flag:
             img, mask = self.augmentation(img, mask)
 
+        mask_flag = self.mask_or_not(mask)
         # 对图片和mask同时进行转换
         img = self.image_transform(img)
         mask = self.mask_transform(mask)
 
-        return img, mask
+        return img, mask, mask_flag
 
     def image_transform(self, image):
         """对样本进行预处理
@@ -111,6 +112,18 @@ class SIIMDataset(torch.utils.data.Dataset):
         mask_aug = Image.fromarray(mask_aug)
 
         return image_aug, mask_aug
+    
+    def mask_or_not(self, mask):
+        mask = np.asarray(mask)
+        mask = mask > 0
+        mask = np.sum(mask)
+
+        if mask:
+            flag = 1
+        else:
+            flag = 0
+        
+        return torch.tensor([flag]).float()
 
     def __len__(self):
         return len(self.image_names)
@@ -132,8 +145,15 @@ if __name__ == "__main__":
     mask_path = "datasets/SIIM_data/train_mask"
     image_path = "datasets/SIIM_data/train_images"
     batch_size = 16
+    images_name = glob.glob(image_path+'/*.jpg')
+    
+    masks_name = list()
+    for image_name in images_name:
+        mask_name = image_name.replace('jpg', 'png')
+        mask_name = mask_name.replace('train_images', 'train_mask')
+        masks_name.append(mask_name)
 
-    dataset_train = SIIMDataset(glob.glob(image_path+'/*.jpg'), glob.glob(mask_path+'/*.png'), 512, False)
+    dataset_train = SIIMDataset(images_name, masks_name, 512, False)
     print(len(dataset_train))
 
     dataloader = DataLoader(dataset_train, batch_size=batch_size, num_workers=32, shuffle=True, pin_memory=True)
@@ -142,11 +162,13 @@ if __name__ == "__main__":
     data = iter(dataloader)
     tbar = tqdm(data)
     error_mask_count = 0
-    for index, (images, masks) in enumerate(tbar):
+    for index, (images, masks, masks_flag) in enumerate(tbar):
+        masks_flag = masks_flag.view(masks_flag.size(0))
         for i in range(images.size(0)):
             image = images[i]
             mask_max = torch.max(masks[i])
             mask_min = torch.min(masks[i])
+            mask_flag = masks_flag[i]
 
             descript = 'Mask_max %d, Mask_min %d'%(mask_max, mask_min)
             tbar.set_description(descript)
@@ -157,8 +179,16 @@ if __name__ == "__main__":
             image = image + mask
 
             image = image.permute(1, 2, 0).numpy()
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            if mask_flag:
+                text = 'Exist mask.'
+                color = (0, 0, 255)
+            else:
+                text = 'No mask'
+                color = (0, 255, 0)
+            image = cv2.putText(image, text, (50, 50), font, 1.2, color, 2)
             cv2.imshow('win', image)
-            cv2.waitKey(1000)
+            cv2.waitKey(0)
 
     if error_mask_count != 0:
         print("There exits wrong mask...")
