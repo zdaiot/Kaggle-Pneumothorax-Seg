@@ -31,7 +31,7 @@ class Train(object):
         self.optimizer = None
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
-        self.criterion = GetLoss([SoftBCEDiceLoss()])
+        self.criterion = GetLoss([SoftBCEDiceLoss(weight=[0.25, 0.75])])
         # self.criterion = torch.nn.BCEWithLogitsLoss()
         self.model_type = config.model_type
         self.t = config.t

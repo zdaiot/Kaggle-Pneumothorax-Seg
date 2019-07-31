@@ -280,6 +280,10 @@ class GetLoss(nn.Module):
         self.loss_weights = loss_weights
         self.sigmoid_flag = sigmoid_flag
 
+        # 打印当前使用的损失函数名称
+        for index, loss_fun in enumerate(loss_funs):
+            print("Loss function {}: {}".format(index, type(loss_fun).__name__))
+
         if self.loss_weights:
             self.loss_weights = torch.Tensor(self.loss_weights)
     
