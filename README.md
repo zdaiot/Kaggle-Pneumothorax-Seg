@@ -48,6 +48,7 @@ I think this error means that you have two tensorboards installed so the plugin 
 - [x] stage2 init lr and optimizer
 - [x] weight decay(When equal to 5e-4, the negative effect, val loss decreases and dice oscillates, the highest is 0.77)
 - [ ] leak, TTA
+- [ ] datasets_statics and choose less than sum
 - [x] adapt to torchvison0.2.0, tensorboard
 
 ## Dataset
@@ -154,6 +155,8 @@ tensorboard --logdir=run1
 |--|--|--|--|--|--|--|--|--|--|--|--|--|
 |ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|average|171|0.8588|
 |ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.306|average|207|0.8648|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|1024|w|CosineAnnealingLR|0.328|average|223|0.8619|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.34|None|224|0.8535|
 |ResNet34(New)/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.5499|None|172|0.8503|
 
 ## Experiment record

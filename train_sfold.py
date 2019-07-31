@@ -39,14 +39,14 @@ def main(config):
 
     # 打印配置参数，并输出到文件中
     pprint(config)
-    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now()) 
-    with codecs.open(config.save_path + '/'+ TIMESTAMP + '.json', 'w', "utf-8") as json_file:
-        json.dump({k: v for k, v in config._get_kwargs()}, json_file, ensure_ascii=False)
-    json_file.close()
+    if config.mode != 'choose_threshold':
+        TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now()) 
+        with codecs.open(config.save_path + '/'+ TIMESTAMP + '.json', 'w', "utf-8") as json_file:
+            json.dump({k: v for k, v in config._get_kwargs()}, json_file, ensure_ascii=False)
     # write_txt(config.save_path, {k: v for k, v in config._get_kwargs()})
 
     # 存储每一次交叉验证的最高得分，最优阈值
-    scores, best_thrs = [], []
+    scores, best_thrs, best_pixel_thrs = [], [], []
 
     # 统计各样本是否有Mask
     if os.path.exists('dataset_static.pkl'):
@@ -62,12 +62,14 @@ def main(config):
         with open('dataset_static.pkl', 'wb') as f:
             pickle.dump([images_path, masks_path, masks_bool], f)
 
+    result = {}
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
-        if index < 4:
-            print("Fold {} passed".format(index))
-            continue
+        # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
+        # if index < 4:
+        #     print("Fold {} passed".format(index))
+        #     continue
         train_image = [images_path[x] for x in train_index]
         train_mask = [masks_path[x] for x in train_index]
         val_image = [images_path[x] for x in val_index]
@@ -85,9 +87,11 @@ def main(config):
         else:
             # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
             if config.two_stage == False:
-                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
+                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
                 scores.append(score)
                 best_thrs.append(best_thr)
+                best_pixel_thrs.append(best_pixel_thr)
+                result[str(index)] = [best_thr, best_pixel_thr, score]
             else:
                 pass
 
@@ -103,26 +107,29 @@ def main(config):
             if config.mode == 'train' or config.mode == 'train_stage2':
                 solver.train_stage2(index)
             else:
-                score, best_thr = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
+                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d.pth' % (config.model_type, 2, index)), index)
                 scores.append(score)
                 best_thrs.append(best_thr)
-
-        # 若取消注释，只会跑一个fold
-        # break
+                best_pixel_thrs.append(best_pixel_thr)
+                result[str(index)] = [best_thr, best_pixel_thr, score]
 
     # 若为选阈值操作，则输出n_fold折验证集结果的平均值
     if config.mode == 'choose_threshold':
         score_mean = np.array(scores).mean()
-        thrs_mean = np.array(best_thrs).mean()
-        print('score_mean:{}, thrs_mean:{}'.format(score_mean, thrs_mean))
+        thr_mean = np.array(best_thrs).mean()
+        pixel_thr_mean = np.array(best_pixel_thrs).mean()
+        print('score_mean:{}, thr_mean:{}, pixel_thr_mean:{}'.format(score_mean, thr_mean, pixel_thr_mean))
+        result['mean'] = [thr_mean, pixel_thr_mean, score_mean]
 
+        with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
+            json.dump(result, json_file, ensure_ascii=False)
+        print('save the result')
         
 if __name__ == '__main__':
     use_paras = False
     if use_paras:
         with open('./checkpoint/unet_resnet34/' + "params.json", 'r', encoding='utf-8') as json_file:
             config = json.load(json_file)
-            json_file.close()
         # dict to namespace
         config = Namespace(**config)
     else:

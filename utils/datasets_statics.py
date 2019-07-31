@@ -54,7 +54,7 @@ class DatasetsStatic(object):
         if self.sort_flag:
             image_names = sorted(image_names)
         
-        masks_pixes_num = list()
+        masks_pixes_num, masks_bool = list(), list()
         for index, image_name in enumerate(image_names):
             mask_name = image_name.replace('jpg', 'png')
             mask_path = os.path.join(self.mask_folder, mask_name)
@@ -64,9 +64,10 @@ class DatasetsStatic(object):
                 masks_pixes_num.append(mask_pixes_num)
             else:
                 masks_pixes_num.append(0)
+            masks_bool.append(bool(mask_pixes_num))
         positive_sum = np.sum(masks_pixes_num)
         negative_sum = len(image_names)*1024*1024 - positive_sum
-        return positive_sum, negative_sum, negative_sum/positive_sum
+        return positive_sum, negative_sum, negative_sum/positive_sum, sum(masks_bool)
 
     def mask_pixes_average_num(self):
         """统计每个样本所包含的掩膜的像素的平均数目
@@ -158,6 +159,6 @@ if __name__ == "__main__":
     average_num = ds.mask_pixes_average_num()
     print('average num: %d'%(average_num))
 
-    positive_sum, negative_sum, ratio = ds.statistical_pixel()
-    print('positive_sum:{}, negative_sum:{}, ratio:{}'.format(positive_sum, negative_sum, ratio))
+    positive_sum, negative_sum, ratio, masks_sum = ds.statistical_pixel()
+    print('positive_sum:{}, negative_sum:{}, ratio:{}, mask_sum:{}'.format(positive_sum, negative_sum, ratio, masks_sum))
     pass

@@ -394,17 +394,16 @@ class Train(object):
         
         return (2. * intersect / union)
 
-    def choose_threshold(self, model_path, index, noise_th= 2048*2):
+    def choose_threshold(self, model_path, index):
         self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
         print('Loaded from %s' % model_path)
-        self.unet.train(False)
         self.unet.eval()
         
         with torch.no_grad():
-            # 先大概选取范围
-            dices_ = []
-            thrs_ = np.arange(0.1, 1, 0.1)  # 阈值列表
-            for th in thrs_:
+            # 先大概选取阈值范围
+            dices_big = []
+            thrs_big = np.arange(0.1, 1, 0.1)  # 阈值列表
+            for th in thrs_big:
                 tmp = []
                 tbar = tqdm.tqdm(self.valid_loader)
                 for i, (images, masks) in enumerate(tbar):
@@ -414,34 +413,58 @@ class Train(object):
                     preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
                     # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                     tmp.append(self.dice_overall(preds, masks).mean())
-                dices_.append(sum(tmp) / len(tmp))
-            dices_ = np.array(dices_)
-            best_thrs_ = thrs_[dices_.argmax()]
-            # 精细选取范围
-            dices = []
-            thrs = np.arange(best_thrs_-0.05, best_thrs_+0.05, 0.01)  # 阈值列表
-            for th in thrs:
-                tmp = []
-                tbar = tqdm.tqdm(self.valid_loader)
-                for i, (images, masks) in enumerate(tbar):
-                    # GT : Ground Truth
-                    images = images.to(self.device)
-                    net_output = torch.sigmoid(self.unet(images))
-                    preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
-                    # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
-                    tmp.append(self.dice_overall(preds, masks).mean())
-                dices.append(sum(tmp) / len(tmp))
-            dices = np.array(dices)
-            score = dices.max()
-            best_thrs = thrs[dices.argmax()]
-            print('best_thrs:{}, score:{}'.format(best_thrs,score))
+                dices_big.append(sum(tmp) / len(tmp))
+            dices_big = np.array(dices_big)
+            best_thrs_big = thrs_big[dices_big.argmax()]
 
-        plt.subplot(1, 2, 1)
+            # 精细选取范围
+            dices_little = []
+            thrs_little = np.arange(best_thrs_big-0.05, best_thrs_big+0.05, 0.01)  # 阈值列表
+            for th in thrs_little:
+                tmp = []
+                tbar = tqdm.tqdm(self.valid_loader)
+                for i, (images, masks) in enumerate(tbar):
+                    # GT : Ground Truth
+                    images = images.to(self.device)
+                    net_output = torch.sigmoid(self.unet(images))
+                    preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
+                    # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
+                    tmp.append(self.dice_overall(preds, masks).mean())
+                dices_little.append(sum(tmp) / len(tmp))
+            dices_little = np.array(dices_little)
+            # score = dices.max()
+            best_thr = thrs_little[dices_little.argmax()]
+            
+            # 选最优像素阈值
+            dices_pixel = []
+            pixel_thrs = np.arange(0, 2304, 256)  # 阈值列表
+            for pixel_thr in pixel_thrs:
+                tmp = []
+                tbar = tqdm.tqdm(self.valid_loader)
+                for i, (images, masks) in enumerate(tbar):
+                    # GT : Ground Truth
+                    images = images.to(self.device)
+                    net_output = torch.sigmoid(self.unet(images))
+                    preds = (net_output > best_thr).to(self.device).float()  # 大于阈值的归为1
+                    preds[preds.view(preds.shape[0],-1).sum(-1) < pixel_thr,...] = 0.0 # 过滤噪声点
+                    tmp.append(self.dice_overall(preds, masks).mean())
+                dices_pixel.append(sum(tmp) / len(tmp))
+            dices_pixel = np.array(dices_pixel)
+            score = dices_pixel.max()
+            best_pixel_thr = pixel_thrs[dices_pixel.argmax()]
+            print('best_thr:{}, best_pixel_thr:{}, score:{}'.format(best_thr, best_pixel_thr, score))
+
+        plt.figure(figsize=(10.4, 4.8))
+        plt.subplot(1, 3, 1)
         plt.title('Large-scale search')
-        plt.plot(thrs_, dices_)
-        plt.subplot(1, 2, 2)
+        plt.plot(thrs_big, dices_big)
+        plt.subplot(1, 3, 2)
         plt.title('Little-scale search')
-        plt.plot(thrs, dices)
+        plt.plot(thrs_little, dices_little)
+        plt.subplot(1, 3, 3)
+        plt.title('pixel thrs search')
+        plt.plot(pixel_thrs, dices_pixel)
         plt.savefig(os.path.join(self.save_path, str(index)+'png'))
         # plt.show()
-        return score, best_thrs
+        plt.close()
+        return best_thr, best_pixel_thr, score

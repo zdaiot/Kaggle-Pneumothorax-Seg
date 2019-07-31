@@ -20,6 +20,7 @@ from torch.autograd import Variable
 from torchvision import transforms
 import cv2
 from albumentations import CLAHE
+import json
 
 
 class Test(object):
@@ -98,8 +99,8 @@ class Test(object):
                     pred = pred.detach().cpu().numpy()
                     preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
             # 如果取消注释，则只测试一个fold的
-            n_splits = 1
-            break
+            # n_splits = 1
+            # break
 
         rle = []
         count_has_mask = 0
@@ -144,10 +145,10 @@ if __name__ == "__main__":
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
-    stage, n_splits = 1, 5
+    stage, n_splits = 2, 5
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.5499, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.328, stage=stage, n_splits=n_splits, test_best_model=False, less_than_sum=1024, csv_path=csv_path, test_image_path=test_image_path)
