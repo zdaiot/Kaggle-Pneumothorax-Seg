@@ -15,7 +15,7 @@ import csv
 import matplotlib.pyplot as plt
 import tqdm
 from backboned_unet import Unet
-from utils.loss import GetLoss, FocalLoss, RobustFocalLoss2d, BCEDiceLoss
+from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss
 from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 
@@ -31,7 +31,7 @@ class Train(object):
         self.optimizer = None
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
-        self.criterion = GetLoss([BCEDiceLoss()])
+        self.criterion = GetLoss([SoftBCEDiceLoss()])
         # self.criterion = torch.nn.BCEWithLogitsLoss()
         self.model_type = config.model_type
         self.t = config.t

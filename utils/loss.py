@@ -78,8 +78,75 @@ class BCEDiceLoss(nn.Module):
         self.weight = weight
         self.dice = DiceLoss(size_average=size_average)
 
-    def forward(self, input, target,):
+    def forward(self, input, target):
         return nn.modules.loss.BCEWithLogitsLoss(size_average=self.size_average, weight=self.weight)(input, target) + self.dice(input, target, weight=self.weight)
+
+
+# reference https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/101429#latest-588288
+class SoftDiceLoss(nn.Module):
+    """二分类加权dice损失
+    """
+    def __init__(self, size_average=True, weight=[0.2, 0.8]):
+        """
+        weight: 各类别权重
+        """
+        super(SoftDiceLoss, self).__init__()
+        self.size_average = size_average
+        self.weight = torch.FloatTensor(weight)
+    
+    def forward(self, logit_pixel, truth_pixel):
+        batch_size = len(logit_pixel)
+        logit = logit_pixel.view(batch_size, -1)
+        truth = truth_pixel.view(batch_size, -1)
+        assert(logit.shape == truth.shape)
+
+        loss = self.soft_dice_criterion(logit, truth)
+
+        if self.size_average:
+            loss = loss.mean()
+        return loss
+
+    def soft_dice_criterion(self, logit, truth):
+        batch_size = len(logit)
+        probability = torch.sigmoid(logit)
+
+        p = probability.view(batch_size, -1)
+        t = truth.view(batch_size, -1)
+        # 向各样本分配所属类别的权重
+        w = truth.detach()
+        self.weight = self.weight.type_as(logit)
+        w = w * (self.weight[1] - self.weight[0]) + self.weight[0]
+
+        p = w * (p*2 - 1)  #convert to [0,1] --> [-1, 1]
+        t = w * (t*2 - 1)
+
+        intersection = (p * t).sum(-1)
+        union =  (p * p).sum(-1) + (t * t).sum(-1)
+        dice  = 1 - 2 * intersection/union
+
+        loss = dice
+        return loss
+
+
+class SoftBCEDiceLoss(nn.Module):
+    """加权BCE+DiceLoss
+    """
+    def __init__(self, size_average=True, weight=[0.2, 0.8]):
+        """
+        weight: weight[0]为负类的权重，weight[1]为正类的权重
+        """
+        super(SoftBCEDiceLoss, self).__init__()
+        self.size_average = size_average
+        self.weight = weight
+        self.bce_loss = nn.BCEWithLogitsLoss(size_average=self.size_average, pos_weight=torch.tensor(self.weight[1]))
+        self.softdiceloss = SoftDiceLoss(size_average=self.size_average, weight=weight)
+    
+    def forward(self, input, target):
+        soft_bce_loss = self.bce_loss(input, target)
+        soft_dice_loss = self.softdiceloss(input, target)
+        loss = soft_bce_loss + soft_dice_loss
+
+        return loss
 
 
 class MultiDiceLoss(nn.Module):
@@ -105,64 +172,6 @@ class MultiDiceLoss(nn.Module):
             totalLoss += diceLoss
  
         return totalLoss
-
-
-class FocalLoss(nn.Module):
-    """二分类FocalLoss
-    """
-    def __init__(self, gamma=0, alpha=None, size_average=True):
-        """
-        Args:
-            gamma: 聚焦因子
-            alpha: 类别权重
-        """
-        super(FocalLoss, self).__init__()
-        self.gamma = gamma
-        self.alpha = alpha
-        if self.alpha:
-            self.alpha = torch.Tensor([self.alpha, 1-self.alpha])
-
-        self.size_average = size_average
-
-    def forward(self, input, target):
-        """
-        Args:
-            input: 模型的预测，在二分类问题中，取sigmoid后，每一个元素表示对应样本属于正类的概率
-            target: 对应样本的真实类标
-        """
-        # 所有样本属于正类的概率
-        pt = torch.sigmoid(input)
-        # 对pt的范围进行限定
-        pt = torch.clamp(pt, 1e-8, 1-1e-8)
-        # 所有样本属于负类的概率
-        pt_neg = 1 - pt
-        # 取出正样本
-        pt = pt[target == 1]
-        # 取出负样本
-        pt_neg = pt_neg[target == 0]
-
-        # 取Log
-        log_pt = torch.log(pt)
-        log_pt_neg = torch.log(pt_neg)
-
-        # 分别计算正样本、负样本的损失
-        focus_p = torch.pow((1-pt), self.gamma)
-        focus_p = torch.clamp(focus_p, 0, 2)
-        focus_neg = torch.pow((1-pt_neg), self.gamma)
-        focus_neg = torch.clamp(focus_neg, 0, 2)
-
-        loss_p = - focus_p * log_pt
-        loss_neg = - focus_neg * log_pt_neg
-        # loss_p = -(1-pt)**self.gamma * log_pt
-        # loss_neg = - (1-pt_neg)**self.gamma * log_pt_neg
-
-        # 进行类别加权
-        if self.alpha is not None:
-            if self.alpha.type() != input.data.type():
-                self.alpha = self.alpha.type_as(input.data)
-        loss = self.alpha[0] * loss_p.mean() + self.alpha[1] * loss_neg.mean()
-
-        return loss
 
 
 class RobustFocalLoss2d(nn.Module):
