@@ -83,6 +83,8 @@ class DatasetsStatic(object):
             if mask_pix_per_image:
                 mask_pix_num.append(mask_pix_per_image)
 
+        masks = len(mask_pix_num)
+
         mask_pix_num_np = np.asarray(mask_pix_num)
         # 掩膜像素数目的最小值
         pix_num_min = np.min(mask_pix_num_np)
@@ -105,6 +107,7 @@ class DatasetsStatic(object):
         ax0.annotate('max: %d, number: %d'%(pix_num_max, mask_num_pix_max), 
                     xy=(pix_num_max, mask_num_pix_max), xytext=(pix_num_max-20000, mask_num_pix_max+5),
                     arrowprops=dict(facecolor='green', shrink=0.0005))        
+        ax0.text(2000, 2000, "masks number: %d"%(masks))
 
         ax1.hist(mask_pix_num, 100, histtype='bar', facecolor='pink', alpha=0.75, cumulative=True, rwidth=0.8)
         ax1.set_title('Accumlation Pixes Num of Mask')
