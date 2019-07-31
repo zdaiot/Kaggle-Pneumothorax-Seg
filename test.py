@@ -105,8 +105,8 @@ class Test(object):
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             file = row['ImageId']
 
-            pred = np.where(pred>threshold, 1, 0)
             pred = cv2.resize(preds_average[index,...],(1024, 1024))
+            pred = np.where(pred>threshold, 1, 0)
 
             if np.sum(pred) < less_than_sum:
                 pred[:] = 0

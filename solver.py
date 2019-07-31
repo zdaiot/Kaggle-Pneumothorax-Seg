@@ -177,7 +177,7 @@ class Train(object):
                 self.writer.add_scalar('Stage1_seg_loss', seg_loss.item(), global_step_before+i)
 
                 descript = "Train Loss: %.7f, classify_loss: %.7f, seg_loss: %.7f, lr: %s"  \
-                            % (classify_loss.item(), seg_loss.item(), loss.item(), params_groups_lr)
+                            % (loss.item(), classify_loss.item(), seg_loss.item(),  params_groups_lr)
                 tbar.set_description(desc=descript)
             # 更新global_step_before为下次迭代做准备
             global_step_before += len(tbar)
@@ -247,17 +247,25 @@ class Train(object):
             self.reset_grad() # 梯度累加的时候需要使用
             
             tbar = tqdm.tqdm(self.train_loader)
-            for i, (images, masks) in enumerate(tbar):
+            for i, (images, masks, masks_classes) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                masks_classes = masks_classes.to(self.device)
                 assert images.size(2) == 1024
 
                 # SR : Segmentation Result
-                net_output = self.unet(images)
+                net_output_classes, net_output = self.unet(images)
+                net_output_classes_flat = net_output_classes.view(net_output_classes.size(0), -1)
                 net_output_flat = net_output.view(net_output.size(0), -1)
+
+                masks_classes_flat = masks_classes.view(masks_classes.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
-                loss = self.criterion(net_output_flat, masks_flat)
+
+                classify_loss = self.criterion_classify(net_output_classes_flat, masks_classes_flat)
+                seg_loss = self.criterion(net_output_flat, masks_flat)
+                loss = classify_loss + seg_loss
+
                 epoch_loss += loss.item()
 
                 # Backprop + optimize, see https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20 for Accumulating Gradients
@@ -278,8 +286,12 @@ class Train(object):
 
                 # 保存到tensorboard，每一步存储一个
                 self.writer.add_scalar('Stage2_train_loss', loss.item(), global_step_before+i)
+                self.writer.add_scalar('Stage2_classify_loss', classify_loss.item(), global_step_before+i)
+                self.writer.add_scalar('Stage2_seg_loss', seg_loss.item(), global_step_before+i)
 
-                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
+                descript = "Train Loss: %.7f, classify_loss: %.7f, seg_loss: %.7f, lr: %s"  \
+                            % (loss.item(), classify_loss.item(), seg_loss.item(), params_groups_lr)
+
                 tbar.set_description(desc=descript)
             # 更新global_step_before为下次迭代做准备
             global_step_before += len(tbar)
@@ -319,19 +331,25 @@ class Train(object):
         tbar = tqdm.tqdm(self.valid_loader)
         loss_sum, dice_sum = 0, 0
         with torch.no_grad(): 
-            for i, (images, masks) in enumerate(tbar):
+            for i, (images, masks, masks_classes) in enumerate(tbar):
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                masks_classes = masks_classes.to(self.device)
 
-                net_output = self.unet(images)
+                net_output_classes, net_output = self.unet(images)
+                net_output_classes_flat = net_output_classes.view(net_output_classes.size(0), -1)
                 net_output_flat = net_output.view(net_output.size(0), -1)
+
+                masks_classes_flat = masks_classes.view(masks_classes.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
                 
-                loss = self.criterion(net_output_flat, masks_flat)
+                classify_loss = self.criterion_classify(net_output_classes_flat, masks_classes_flat)
+                seg_loss = self.criterion(net_output_flat, masks_flat)
+                loss = classify_loss + seg_loss
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
-                net_output_flat_sign = (torch.sigmoid(net_output_flat)>0.5).float()
+                net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
                 dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
                 dice_sum += dice.item()
 

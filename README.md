@@ -121,6 +121,7 @@ tensorboard --logdir=run1
 ```
 
 ## Results
+### Old Submission.csv
 |backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|sum|score|
 |--|--|--|--|--|--|--|--|--|--|--|--|
 |U-Net|32|224|w/o|w/o|w/o|w/o|w/o|random|||0.7019|
@@ -140,3 +141,9 @@ tensorboard --logdir=run1
 |ResNet34 freeze/No accumulation|20/8|512/1024|w/|w/ CLAHE|1024|1024*2|w|CosineAnnealingLR|0.48|118|0.7969|
 |ResNet34 freeze/No accumulation|20/8|512/1024|w/|w/ CLAHE|1024|1024*2|w|CosineAnnealingLR|0.30|172|0.7958|
 |ResNet34 freeze/No accumulation|8|1024|w/|w/ CLAHE|1024|2048*2|w|CosineAnnealingLR|0.35|209|0.8399|
+|ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|171|0.8455|
+
+### New Submission.csv
+|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|sum|score|
+|--|--|--|--|--|--|--|--|--|--|--|--|
+|ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|171|0.8588|
