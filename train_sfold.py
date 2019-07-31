@@ -67,9 +67,9 @@ def main(config):
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
         # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
-        # if index < 4:
-        #     print("Fold {} passed".format(index))
-        #     continue
+        if index != 2:
+            print("Fold {} passed".format(index))
+            continue
         train_image = [images_path[x] for x in train_index]
         train_mask = [masks_path[x] for x in train_index]
         val_image = [images_path[x] for x in val_index]
