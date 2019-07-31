@@ -142,7 +142,7 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'linknet'
+    model_name = 'unet_resnet34'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, n_splits = 1, 5
     if stage == 1:
@@ -150,4 +150,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.35, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2000, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.5499, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048, csv_path=csv_path, test_image_path=test_image_path)

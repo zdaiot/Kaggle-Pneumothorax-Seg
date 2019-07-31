@@ -15,7 +15,7 @@ import csv
 import matplotlib.pyplot as plt
 import tqdm
 from backboned_unet import Unet
-from utils.loss import GetLoss, FocalLoss, RobustFocalLoss2d
+from utils.loss import GetLoss, FocalLoss, RobustFocalLoss2d, BCEDiceLoss
 from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 
@@ -31,8 +31,8 @@ class Train(object):
         self.optimizer = None
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
-        # self.criterion = GetLoss([RobustFocalLoss2d()])
-        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.criterion = GetLoss([BCEDiceLoss()])
+        # self.criterion = torch.nn.BCEWithLogitsLoss()
         self.model_type = config.model_type
         self.t = config.t
 
@@ -130,7 +130,9 @@ class Train(object):
             raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
 
     def train(self, index):
+        # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-4}, {'params': self.unet.encoder.parameters(), 'lr': 1e-6},])
         self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, weight_decay=self.weight_decay)
+
         # 若训练到一半暂停了，则需要加载之前训练的参数，并加载之前学习率
         if self.resume:
             self.load_checkpoint(load_optimizer=True)
@@ -210,7 +212,9 @@ class Train(object):
             lr_scheduler.step()
 
     def train_stage2(self, index):
+        # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-5}, {'params': self.unet.encoder.parameters(), 'lr': 1e-7},])
         self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay)
+
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
             # 若第二个阶段训练一半，要重新加载

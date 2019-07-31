@@ -36,20 +36,19 @@ I think this error means that you have two tensorboards installed so the plugin 
 
 ## TODO
 - [x] unet_resnet34(matters a lot)
-- [x] data augmentation
-- [x] two stage set: two stage batch size(512,1024 big solution matters a lot) and two stages epoch
+- [x] two stage set: two stage batch size(768,1024 big solution matters a lot) and two stages epoch
 - [x] epoch freezes the encoder layer in the first stage
 - [x] epoch gradients accumulate in the second stage
-- [x] adapt to torchvison0.2.0
-- [x] cross validation
-- [x] lr decay - cos annealing(matters a lot)
+- [x] data augmentation
 - [x] CLAHE for every picture(matters a little)
-- [ ] Average each result of cross-validation 
+- [x] lr decay - cos annealing(matters a lot)
+- [x] cross validation
 - [x] Stratified K-fold
+- [x] Average each result of cross validation(matters a lot) 
 - [x] stage2 init lr and optimizer
-- [ ] leak, TTA
 - [x] weight decay(When equal to 5e-4, the negative effect, val loss decreases and dice oscillates, the highest is 0.77)
-- [x] tensorboard
+- [ ] leak, TTA
+- [x] adapt to torchvison0.2.0, tensorboard
 
 ## Dataset
 Creat dataset soft links in the following directories.
@@ -128,6 +127,7 @@ tensorboard --logdir=run1
 ```
 
 ## Results
+### Old Submission.csv
 |backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|sum|score|
 |--|--|--|--|--|--|--|--|--|--|--|--|
 |U-Net|32|224|w/o|w/o|w/o|w/o|w/o|random|||0.7019|
@@ -147,3 +147,17 @@ tensorboard --logdir=run1
 |ResNet34 freeze/No accumulation|20/8|512/1024|w/|w/ CLAHE|1024|1024*2|w|CosineAnnealingLR|0.48|118|0.7969|
 |ResNet34 freeze/No accumulation|20/8|512/1024|w/|w/ CLAHE|1024|1024*2|w|CosineAnnealingLR|0.30|172|0.7958|
 |ResNet34 freeze/No accumulation|8|1024|w/|w/ CLAHE|1024|2048*2|w|CosineAnnealingLR|0.35|209|0.8399|
+|ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|249(ensemble)|0.8455|
+
+### New Submission.csv
+|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|ensemble|sum|score|
+|--|--|--|--|--|--|--|--|--|--|--|--|--|
+|ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|average|171|0.8588|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.306|average|207|0.8648|
+|ResNet34(New)/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.5499|None|172|0.8503|
+
+## Experiment record
+|backbone|batch_size|image_size|pretrained|data proprecess|lr|weight_decay|score|
+|--|--|--|--|--|--|--|--|
+|ResNet34/768|10|768|w/|w/ CLAHE|1e-7,1e-5|0.0|0.79|
+|ResNet34/768|10|768|w/|w/ CLAHE|0.0002|0.0|0.8264294|

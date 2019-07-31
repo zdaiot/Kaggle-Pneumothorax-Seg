@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
         config = parser.parse_args()
         # config = {k: v for k, v in args._get_kwargs()}
-    if config.two_stage == False:
+    if config.two_stage == False and config.mode != 'choose_threshold':
         assert config.epoch_stage2 == 0,'当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减'
     if config.mode == 'traim_stage2':
         assert config.resume != ''

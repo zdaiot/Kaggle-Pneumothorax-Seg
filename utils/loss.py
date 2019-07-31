@@ -72,13 +72,14 @@ class DiceLoss(nn.Module):
         return 1 - dice_loss(F.sigmoid(input), target, weight=weight, is_average=self.size_average)
 
 class BCEDiceLoss(nn.Module):
-    def __init__(self, size_average=True):
+    def __init__(self, size_average=True, weight=None):
         super().__init__()
         self.size_average = size_average
+        self.weight = weight
         self.dice = DiceLoss(size_average=size_average)
 
-    def forward(self, input, target, weight=None):
-        return nn.modules.loss.BCEWithLogitsLoss(size_average=self.size_average, weight=weight)(input, target) + self.dice(input, target, weight=weight)
+    def forward(self, input, target,):
+        return nn.modules.loss.BCEWithLogitsLoss(size_average=self.size_average, weight=self.weight)(input, target) + self.dice(input, target, weight=self.weight)
 
 
 class MultiDiceLoss(nn.Module):
