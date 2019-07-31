@@ -255,10 +255,12 @@ class Train(object):
             elif self.resume.split('_')[2] == '1':
                 self.load_checkpoint(load_optimizer=False)
                 self.start_epoch = 0
+                self.max_dice = 0
 
         # 第一阶段结束后直接进行第二个阶段，中间并没有暂停
         else:
             self.start_epoch = 0
+            self.max_dice = 0
 
         # 防止训练到一半暂停重新训练，日志被覆盖
         global_step_before = self.start_epoch*len(self.train_loader)
