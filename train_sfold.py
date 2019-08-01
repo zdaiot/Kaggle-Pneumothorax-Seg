@@ -58,7 +58,7 @@ def main(config):
         print('Calculate dataset static information.')
         # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
         dataset_static = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
-        images_path, masks_path, masks_bool = dataset_static.mask_static_bool()
+        images_path, masks_path, masks_bool = dataset_static.mask_static_level(level=5)
         with open('dataset_static.pkl', 'wb') as f:
             pickle.dump([images_path, masks_path, masks_bool], f)
 
@@ -67,7 +67,7 @@ def main(config):
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
         # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
-        if index != 2:
+        if index != 0:
             print("Fold {} passed".format(index))
             continue
         train_image = [images_path[x] for x in train_index]
@@ -152,12 +152,12 @@ if __name__ == '__main__':
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=10, help='batch size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=55, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=8, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
