@@ -3,6 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 
 
 class DatasetsStatic(object):
@@ -46,6 +47,42 @@ class DatasetsStatic(object):
             masks_bool.append(mask_flag)
         
         return images_path, masks_path, masks_bool
+
+    def mask_static_level(self, level=16):
+        """ 依照掩膜的大小，按照指定的等级数对各样本包含的掩膜进行分级
+        """
+        image_names = os.listdir(self.image_folder)
+        if self.sort_flag:
+            image_names = sorted(image_names)
+        images_path = list()
+        masks_path = list()
+        masks_pixes_num = list()
+        for index, image_name in enumerate(image_names):
+            image_path = os.path.join(self.image_folder, image_name)
+            mask_name = image_name.replace('jpg', 'png')
+            mask_path = os.path.join(self.mask_folder, mask_name)
+
+            mask_pixes_num = self.cal_mask_pixes(mask_path)
+
+            images_path.append(image_path)
+            masks_path.append(mask_path)
+            masks_pixes_num.append(mask_pixes_num)
+        
+        masks_pixes_num_np = np.asarray(masks_pixes_num)
+        
+        # 最大掩膜和最小掩膜
+        mask_max = np.max(masks_pixes_num_np)
+        mask_min = np.min(masks_pixes_num_np)
+        # 相邻两个等级之间相差的掩膜大小，采用向上取证以保证等级数不会超出level
+        step = math.ceil((mask_max - mask_min) / level)
+        # 每一个元素表示对应掩膜大小所属的等级
+        masks_level = np.zeros_like(masks_pixes_num_np)
+        for index, start in enumerate(range(mask_min, mask_max, step)):
+            end = start + step
+            mask_index = np.where((masks_pixes_num_np >= start) & (masks_pixes_num_np < end))
+            masks_level[mask_index] = index
+        
+        return images_path, masks_path, masks_level
 
     def statistical_pixel(self):
         """按像素点计算所有掩模中正负样本的比例
@@ -155,6 +192,10 @@ if __name__ == "__main__":
     masks_folder = 'train_mask'
     ds = DatasetsStatic(dataset_root, images_folder, masks_folder)
 
+    _, _, masks_level = ds.mask_static_level(level=10)
+    for i in masks_level:
+        print(i)
+    
     ds.mask_num_static()
     average_num = ds.mask_pixes_average_num()
     print('average num: %d'%(average_num))
