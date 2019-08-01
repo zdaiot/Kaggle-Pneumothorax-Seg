@@ -107,7 +107,7 @@ def main(config):
             if config.mode == 'train' or config.mode == 'train_stage2':
                 solver.train_stage2(index)
             else:
-                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d.pth' % (config.model_type, 2, index)), index)
+                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
                 scores.append(score)
                 best_thrs.append(best_thr)
                 best_pixel_thrs.append(best_pixel_thr)
@@ -119,7 +119,7 @@ def main(config):
         thr_mean = np.array(best_thrs).mean()
         pixel_thr_mean = np.array(best_pixel_thrs).mean()
         print('score_mean:{}, thr_mean:{}, pixel_thr_mean:{}'.format(score_mean, thr_mean, pixel_thr_mean))
-        result['mean'] = [thr_mean, pixel_thr_mean, score_mean]
+        result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
 
         with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
             json.dump(result, json_file, ensure_ascii=False)
@@ -190,6 +190,6 @@ if __name__ == '__main__':
         # config = {k: v for k, v in args._get_kwargs()}
     if config.two_stage == False and config.mode != 'choose_threshold':
         assert config.epoch_stage2 == 0,'当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减'
-    if config.mode == 'traim_stage2':
+    if config.mode == 'train_stage2':
         assert config.resume != ''
     main(config)

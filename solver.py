@@ -447,4 +447,4 @@ class Train(object):
         plt.savefig(os.path.join(self.save_path, str(index)+'png'))
         # plt.show()
         plt.close()
-        return best_thr, best_pixel_thr, score
+        return float(best_thr), float(best_pixel_thr), float(score)
