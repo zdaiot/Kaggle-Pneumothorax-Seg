@@ -68,6 +68,8 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
         model = LinkNet34(num_classes=1)
     elif model_name == 'deeplabv3plus':
         model = DeepLabV3Plus(num_classes=1)
+    elif model_name == 'pspnet_resnet34':
+        model = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
     else:
         raise ValueError('The model should be one of [Unet/unet_resnet34]')
     

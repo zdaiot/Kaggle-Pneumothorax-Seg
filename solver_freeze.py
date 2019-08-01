@@ -80,6 +80,8 @@ class Train(object):
             self.unet = LinkNet34(num_classes=self.output_ch)
         elif self.model_type == 'deeplabv3plus':
             self.unet = DeepLabV3Plus(num_classes=self.output_ch)
+        elif self.model_type == 'pspnet_resnet34':
+            self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
 
         if torch.cuda.is_available():
             self.unet = torch.nn.DataParallel(self.unet)

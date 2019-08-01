@@ -52,6 +52,8 @@ class Test(object):
             self.unet = LinkNet34(num_classes=1)
         elif self.model_type == 'deeplabv3plus':
             self.unet = DeepLabV3Plus(num_classes=1)
+        elif self.model_type == 'pspnet_resnet34':
+            self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
         print('build model done！')
 
         self.unet.to(self.device)
