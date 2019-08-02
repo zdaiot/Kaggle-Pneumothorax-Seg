@@ -155,7 +155,6 @@ if __name__ == "__main__":
             mask_max = torch.max(masks[i])
             mask_min = torch.min(masks[i])
             
-
             descript = 'Mask_max %d, Mask_min %d'%(mask_max, mask_min)
             tbar.set_description(descript)
             if mask_max != 1 and mask_max != 0:

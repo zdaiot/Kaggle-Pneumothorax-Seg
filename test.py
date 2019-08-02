@@ -5,6 +5,7 @@ import time
 import torch
 import torchvision
 from PIL import Image
+import matplotlib.pyplot as plt
 from torch import optim
 from tqdm import tqdm_notebook, tqdm
 from utils.evaluation import *
@@ -86,19 +87,8 @@ class Test(object):
                     file = row['ImageId']
                     img_path = os.path.join(test_image_path, file.strip() + '.jpg')
                     img = Image.open(img_path).convert('RGB')
-
-                    # aug = CLAHE(p=1.0)
-                    # img = np.asarray(img)
-                    # img = aug(image=img)['image']
-                    # img = Image.fromarray(img)
-
-                    img = self.image_transform(img)
-                    img = torch.unsqueeze(img, dim=0)
-
-                    img = img.float().to(self.device)
-                    pred = torch.sigmoid(self.unet(img))
-                    # 预测出的结果
-                    pred = pred.detach().cpu().numpy()
+                    
+                    pred = self.tta(img)
                     preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
             # 如果取消注释，则只测试一个fold的
             n_splits = 1
@@ -136,6 +126,58 @@ class Test(object):
         transform_compose = transforms.Compose([resize, to_tensor, normalize])
 
         return transform_compose(image)
+    
+    def detection(self, image):
+        """对输入样本进行检测
+        
+        Args:
+            image: 待检测样本，Image
+        Return:
+            pred: 检测结果
+        """
+        image = self.image_transform(image)
+        image = torch.unsqueeze(image, dim=0)
+        image = image.float().to(self.device)
+        pred = torch.sigmoid(self.unet(image))
+        # 预测出的结果
+        pred = pred.view(self.image_size, self.image_size)
+        pred = pred.detach().cpu().numpy()
+
+        return pred
+
+    def tta(self, image):
+        """执行TTA预测
+
+        Args:
+            image: Image图片
+        Return:
+            pred: 最后预测的结果
+        """
+        preds = np.zeros([self.image_size, self.image_size])
+        # 左右翻转
+        image_hflip = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+        hflip_pred = self.detection(image_hflip)
+        hflip_pred_img = Image.fromarray(hflip_pred)
+        pred_img = hflip_pred_img.transpose(Image.FLIP_LEFT_RIGHT)
+        preds += np.asarray(pred_img)
+
+        # CLAHE
+        aug = CLAHE(p=1.0)
+        image_np = np.asarray(image)
+        clahe_image = aug(image=image_np)['image']
+        clahe_image = Image.fromarray(clahe_image)
+        clahe_pred = self.detection(clahe_image)
+        preds += clahe_pred
+
+        # 原图
+        original_pred = self.detection(image)
+        preds += original_pred
+
+        # 求平均
+        pred = preds / 3
+
+        return pred
 
 
 if __name__ == "__main__":
@@ -153,4 +195,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.38, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.38, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=1024, csv_path=csv_path, test_image_path=test_image_path)
