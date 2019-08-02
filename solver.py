@@ -146,9 +146,15 @@ class Train(object):
             重置初始学习率，在load_checkpoint中会加载优化器，但其中的initial_lr还是之前的，所以需要覆盖为self.lr，让其从self.lr衰减
             '''
             self.optimizer.param_groups[0]['initial_lr'] = self.lr
-        
+            
+        '''学习率热重启，并且重启后的初始学习率相比之前有所降低
+        TODO
+        - 两个CosineAnnealingLR函数中的T_max参数
+        - 热重启后的初始学习率
+        - resume学习率没有接上，所以resume暂时无法使用
+        '''
         stage1_epoches = self.epoch_stage1 - self.start_epoch
-        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches)
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 40)
         # 防止训练到一半暂停重新训练，日志被覆盖
         global_step_before = self.start_epoch*len(self.train_loader)
 
@@ -156,6 +162,10 @@ class Train(object):
             epoch += 1
             self.unet.train(True)
             
+            if epoch == 30:
+                self.optimizer.param_groups[0]['initial_lr'] = 0.0001
+                lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 25)
+
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
