@@ -143,7 +143,7 @@ tensorboard --logdir=run1
 |ResNet34 freeze|20|512|w/|w/|w/|2048*2|w|CosineAnnealingLR|0.45|164|0.8259|
 |ResNet34 freeze|20|512|w/|w/ CLAHE|w/|2048*2|w|CosineAnnealingLR|0.47|208|0.8401|
 |ResNet34 freeze|20|512|w/|w/ CLAHE|w/|2048*2|w|CosineAnnealingLR|0.40|225|0.8412|
-|ResNet34 freeze|20|512|w/|w/ CLAHE|w/|2048*2|w|CosineAnnealingLR|0.36|-|0.8446|
+|ResNet34 freeze|20|512|w/|w/ CLAHE|w/|2048*2|w|CosineAnnealingLR|0.36|-|**0.8446**|
 |ResNet34 freeze/No accumulation|20/8|512/1024|w/|w/ CLAHE|512|2048*2|w|CosineAnnealingLR|0.48|210|0.8419|
 |ResNet34 freeze/No accumulation|20/8|512/1024|w/|w/ CLAHE|1024|1024*2|w|CosineAnnealingLR|0.48|118|0.7969|
 |ResNet34 freeze/No accumulation|20/8|512/1024|w/|w/ CLAHE|1024|1024*2|w|CosineAnnealingLR|0.30|172|0.7958|
@@ -151,16 +151,23 @@ tensorboard --logdir=run1
 |ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|249(ensemble)|0.8455|
 
 ### New Submission.csv
-|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|ensemble|sum|score|
-|--|--|--|--|--|--|--|--|--|--|--|--|--|
-|ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|average|171|0.8588|
-|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.306|average|207|0.8648|
-|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|1024|w|CosineAnnealingLR|0.328|average|223|0.8619|
-|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.34|None|224|0.8535|
-|ResNet34(New)/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.5499|None|172|0.8503|
+|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|loss function|ensemble|sum|score|
+|--|--|--|--|--|--|--|--|--|--|--|--|--|--|
+|ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46||average|171|0.8588|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.306|BCE|average|207|**0.8648**|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|1024|w|CosineAnnealingLR|0.328|BCE|average|223|0.8619|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.34|bce|None|224|0.8535|
+|ResNet34(New)/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.5499|bce|None|172|0.8503|
+|ResNet34(New)/No accumulation|20|1024|w/|w/ CLAHE|1024|1792|w|CosineAnnealingLR|0.3800|bce|None|228|0.8505|
+|ResNet34(New)/No accumulation|20|1024|w/|w/ CLAHE|1024|1024|w|CosineAnnealingLR|0.72|bce+dice+weight|None|195|0.8539|
+
 
 ## Experiment record
 |backbone|batch_size|image_size|pretrained|data proprecess|lr|weight_decay|score|
 |--|--|--|--|--|--|--|--|
 |ResNet34/768|10|768|w/|w/ CLAHE|1e-7,1e-5|0.0|0.79|
 |ResNet34/768|10|768|w/|w/ CLAHE|0.0002|0.0|0.8264294|
+
+## MileStone
+* 0.8446: fixed test code, used resize(1024)
+* 0.8648: used more large resolution (516->768), and average ensemble (little)

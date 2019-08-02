@@ -74,7 +74,7 @@ class Test(object):
 
         for fold in range(n_splits):
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 2))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 0))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
@@ -87,10 +87,10 @@ class Test(object):
                     img_path = os.path.join(test_image_path, file.strip() + '.jpg')
                     img = Image.open(img_path).convert('RGB')
 
-                    aug = CLAHE(p=1.0)
-                    img = np.asarray(img)
-                    img = aug(image=img)['image']
-                    img = Image.fromarray(img)
+                    # aug = CLAHE(p=1.0)
+                    # img = np.asarray(img)
+                    # img = aug(image=img)['image']
+                    # img = Image.fromarray(img)
 
                     img = self.image_transform(img)
                     img = torch.unsqueeze(img, dim=0)
@@ -153,4 +153,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.70, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=768, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.38, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048, csv_path=csv_path, test_image_path=test_image_path)

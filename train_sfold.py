@@ -22,7 +22,7 @@ else:
 
 def main(config):
     cudnn.benchmark = True
-    if config.model_type not in ['U_Net', 'R2U_Net', 'AttU_Net', 'R2AttU_Net', 'unet_resnet34', 'linknet', 'deeplabv3plus']:
+    if config.model_type not in ['U_Net', 'R2U_Net', 'AttU_Net', 'R2AttU_Net', 'unet_resnet34', 'linknet', 'deeplabv3plus', 'pspnet_resnet34']:
         print('ERROR!! model_type should be selected in U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
         print('Your input for model_type was %s' % config.model_type)
         return
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=55, help='How many epoch in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=45, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
@@ -167,7 +167,7 @@ if __name__ == '__main__':
 
         # model set
         parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--mode', type=str, default='choose_threshold', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34')
 
         # model hyper-parameters
@@ -177,7 +177,7 @@ if __name__ == '__main__':
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
         parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
-        parser.add_argument('--lr_stage2', type=float, default=0.00005, help='init lr in stage2')
+        parser.add_argument('--lr_stage2', type=float, default=0.00001, help='init lr in stage2')
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
         
         # dataset 

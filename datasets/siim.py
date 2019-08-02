@@ -132,8 +132,15 @@ if __name__ == "__main__":
     mask_path = "datasets/SIIM_data/train_mask"
     image_path = "datasets/SIIM_data/train_images"
     batch_size = 16
+    images_name = glob.glob(image_path+'/*.jpg')
+    
+    masks_name = list()
+    for image_name in images_name:
+        mask_name = image_name.replace('jpg', 'png')
+        mask_name = mask_name.replace('train_images', 'train_mask')
+        masks_name.append(mask_name)
 
-    dataset_train = SIIMDataset(glob.glob(image_path+'/*.jpg'), glob.glob(mask_path+'/*.png'), 512, False)
+    dataset_train = SIIMDataset(images_name, masks_name, 512, True)
     print(len(dataset_train))
 
     dataloader = DataLoader(dataset_train, batch_size=batch_size, num_workers=32, shuffle=True, pin_memory=True)
@@ -147,6 +154,7 @@ if __name__ == "__main__":
             image = images[i]
             mask_max = torch.max(masks[i])
             mask_min = torch.min(masks[i])
+            
 
             descript = 'Mask_max %d, Mask_min %d'%(mask_max, mask_min)
             tbar.set_description(descript)
@@ -157,8 +165,9 @@ if __name__ == "__main__":
             image = image + mask
 
             image = image.permute(1, 2, 0).numpy()
+
             cv2.imshow('win', image)
-            cv2.waitKey(1000)
+            cv2.waitKey(0)
 
     if error_mask_count != 0:
         print("There exits wrong mask...")
