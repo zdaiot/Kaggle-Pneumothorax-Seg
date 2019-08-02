@@ -58,7 +58,7 @@ def main(config):
         print('Calculate dataset static information.')
         # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
         dataset_static = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
-        images_path, masks_path, masks_bool = dataset_static.mask_static_level(level=5)
+        images_path, masks_path, masks_bool = dataset_static.mask_static_bool()
         with open('dataset_static.pkl', 'wb') as f:
             pickle.dump([images_path, masks_path, masks_bool], f)
 
@@ -176,8 +176,8 @@ if __name__ == '__main__':
         parser.add_argument('--output_ch', type=int, default=1)
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
-        parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
-        parser.add_argument('--lr_stage2', type=float, default=0.00001, help='init lr in stage2')
+        parser.add_argument('--lr', type=float, default=2e-4, help='init lr in stage1')
+        parser.add_argument('--lr_stage2', type=float, default=1e-5, help='init lr in stage2')
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
         
         # dataset 

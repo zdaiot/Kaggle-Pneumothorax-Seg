@@ -22,6 +22,7 @@ class DatasetsStatic(object):
 
     def mask_static_bool(self):
         """统计数据集中的每一个样本是否存在掩膜
+        
         Return:
             images_path: 所有样本的路径
             masks_path: 样本对应的掩膜的路径
