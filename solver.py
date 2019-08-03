@@ -31,8 +31,8 @@ class Train(object):
         self.optimizer = None
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
-        # self.criterion = GetLoss([SoftBCEDiceLoss(weight=[0.25, 0.75])])
-        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.criterion = GetLoss([SoftBCEDiceLoss(weight=[0.25, 0.75])])
+        # self.criterion = torch.nn.BCEWithLogitsLoss()
         self.model_type = config.model_type
         self.t = config.t
 
@@ -154,7 +154,7 @@ class Train(object):
         - resume学习率没有接上，所以resume暂时无法使用
         '''
         stage1_epoches = self.epoch_stage1 - self.start_epoch
-        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 40)
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches+10)
         # 防止训练到一半暂停重新训练，日志被覆盖
         global_step_before = self.start_epoch*len(self.train_loader)
 
@@ -162,9 +162,9 @@ class Train(object):
             epoch += 1
             self.unet.train(True)
             
-            if epoch == 30:
-                self.optimizer.param_groups[0]['initial_lr'] = 0.0001
-                lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 25)
+            # if epoch == 30:
+            #     self.optimizer.param_groups[0]['initial_lr'] = 0.0001
+            #     lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 25)
 
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
@@ -256,7 +256,7 @@ class Train(object):
         global_step_before = self.start_epoch*len(self.train_loader)
 
         stage2_epoches = self.epoch_stage2 - self.start_epoch
-        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage2_epoches)
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage2_epoches+5)
 
         for epoch in range(self.start_epoch, self.epoch_stage2):
             epoch += 1
