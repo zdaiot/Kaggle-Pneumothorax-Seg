@@ -47,9 +47,10 @@ I think this error means that you have two tensorboards installed so the plugin 
 - [x] Average each result of cross validation(matters a lot) 
 - [x] stage2 init lr and optimizer
 - [x] weight decay(When equal to 5e-4, the negative effect, val loss decreases and dice oscillates, the highest is 0.77)
-- [ ] leak, TTA
-- [ ] datasets_statics and choose less than sum
+- [x] leak, TTA
+- [x] datasets_statics and choose less than sum
 - [x] adapt to torchvison0.2.0, tensorboard
+- [ ] different Learning rates between encoder and decoder in stage2
 
 ## Dataset
 Creat dataset soft links in the following directories.
@@ -151,16 +152,20 @@ tensorboard --logdir=run1
 |ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46|249(ensemble)|0.8455|
 
 ### New Submission.csv
-|backbone|batch_size|image_size|pretrained|data proprecess|mask resize|less than sum|T|lr|thresh|loss function|ensemble|sum|score|
+|backbone|batch_size|image_size|pretrained|data proprecess|lr|loss function|thresh|less than sum|ensemble|sum|score|
 |--|--|--|--|--|--|--|--|--|--|--|--|--|--|
-|ResNet34/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.46||average|171|0.8588|
-|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.306|BCE|average|207|**0.8648**|
-|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|1024|w|CosineAnnealingLR|0.328|BCE|average|223|0.8619|
-|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.34|bce|None|224|0.8535|
-|ResNet34(New)/No accumulation|20|768|w/|w/ CLAHE|1024|2048|w|CosineAnnealingLR|0.5499|bce|None|172|0.8503|
-|ResNet34(New)/No accumulation|20|1024|w/|w/ CLAHE|1024|1792|w|CosineAnnealingLR|0.3800|bce|None|228|0.8505|
-|ResNet34(New)/No accumulation|20|1024|w/|w/ CLAHE|1024|1024|w|CosineAnnealingLR|0.72|bce+dice+weight|None|195|0.8539|
-
+|ResNet34/No accumulation|20|768|w/|w/ CLAHE|CosineAnnealingLR||0.46|2048|average|171|0.8588|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|CosineAnnealingLR|BCE|0.306|2048|average|207|**0.8648**|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|CosineAnnealingLR|BCE|0.328|1024|average|223|0.8619|
+|ResNet34/No accumulation|20|1024|w/|w/ CLAHE|CosineAnnealingLR|bce|0.34|2048|None|224|0.8535|
+|ResNet34(New)/No accumulation|20|768|w/|w/ CLAHE|CosineAnnealingLR|bce|0.5499|2048|None|172|0.8503|
+|ResNet34(New)/No accumulation|20|1024|w/|w/ CLAHE|CosineAnnealingLR|bce|0.3800|1792|None|228|0.8505|
+|ResNet34(New)/No accumulation|20|1024|w/|w/ CLAHE|CosineAnnealingLR|bce+dice+weight|0.72|1024|None|195|0.8539|
+|ResNet34(New)/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6)|bce+dice+weight|0.67|2048|TTA/None|207|**0.8691**|
+|ResNet34(New)/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/1e-5)|bce+dice+weight|0.75|1280|TTA/None|219|0.8571|
+|ResNet34(New)/No accumulation|10/6|1024|w/|w/ 0.4CLAHE self|CosineAnnealingLR(2e-4/5e-6)|bce+dice+weight|0.75|1024|TTA/None|217|0.8575|
+|ResNet34(new)/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6)|bce|0.45|1024|TTA/None|236|0.8570|
+|ResNet34/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6)|bce|0.36|768|TTA/None|254|0.8555|
 
 ## Experiment record
 |backbone|batch_size|image_size|pretrained|data proprecess|lr|weight_decay|score|
@@ -171,3 +176,4 @@ tensorboard --logdir=run1
 ## MileStone
 * 0.8446: fixed test code, used resize(1024)
 * 0.8648: used more large resolution (516->768), and average ensemble (little)
+* 0.8691: bce+dice+weight (matters a lot/1.21); TTA (matters little); In the first stage, the epoch was reduced from 60 to 40, and the learning rate was reduced to 0 at the 50th epoch. The second stage of learning is adjusted to 5e-6 (matters a lot); Change the data preprocessing mode, the CLAHE probability is changed to 0.4, the vertical flip is removed, the rotation angle is reduced, and the center cutting is added.
