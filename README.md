@@ -153,7 +153,7 @@ tensorboard --logdir=run1
 
 ### New Submission.csv
 |backbone|batch_size|image_size|pretrained|data proprecess|lr|loss function|thresh|less than sum|ensemble|sum|score|
-|--|--|--|--|--|--|--|--|--|--|--|--|--|--|
+|--|--|--|--|--|--|--|--|--|--|--|--|
 |ResNet34/No accumulation|20|768|w/|w/ CLAHE|CosineAnnealingLR||0.46|2048|average|171|0.8588|
 |ResNet34/No accumulation|20|1024|w/|w/ CLAHE|CosineAnnealingLR|BCE|0.306|2048|average|207|**0.8648**|
 |ResNet34/No accumulation|20|1024|w/|w/ CLAHE|CosineAnnealingLR|BCE|0.328|1024|average|223|0.8619|
