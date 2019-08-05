@@ -65,7 +65,7 @@ def main(config):
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
     for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
-        if index < 4:
+        if index != 0:
             print("Fold {} passed".format(index))
             continue
         train_image = [images_path[x] for x in train_index]
@@ -146,7 +146,7 @@ if __name__ == '__main__':
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=10, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=60, help='How many epoch in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
@@ -170,7 +170,9 @@ if __name__ == '__main__':
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
         parser.add_argument('--lr', type=float, default=0.0002, help='init lr in stage1')
-        parser.add_argument('--lr_stage2', type=float, default=0.00005, help='init lr in stage2')
+        parser.add_argument('--encoder_lr', type=float, default=0.00001, help='init encoder lr in stage1')
+        parser.add_argument('--lr_stage2', type=float, default=0.00001, help='init lr in stage2')
+        parser.add_argument('--encoder_lr_stage2', type=float, default=0.000005, help='init encoder lr in stage2')
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
         
         # dataset 
