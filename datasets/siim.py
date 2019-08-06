@@ -12,6 +12,8 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from utils.mask_functions import rle2mask
 from utils.data_augmentation import data_augmentation
+from torch.utils.data.sampler import WeightedRandomSampler
+import pickle
 
 
 # SIIM Dataset Class
@@ -115,14 +117,67 @@ class SIIMDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.image_names)
 
+def exist_mask(mask):
+    """判断是否存在掩膜
+    """
+    pix_max = torch.max(mask)
+    if pix_max == 1:
+        flag = 1
+    elif pix_max == 0:
+        flag = 0
+    
+    return flag
 
-def get_loader(train_image, train_mask, val_image, val_mask, image_size=224, batch_size=2, num_workers=2, augmentation_flag=False):
+def weight_mask(dataset, weights_sample=[1, 3]):
+    """计算每一个样本的权重
+
+    Args:
+        dataset: 数据集
+        weight_sample: 正负类样本对应的采样权重
+    
+    Return:
+        weights: 每一个样本对应的权重 
+    """
+    print('Start calculating weights of sample...')
+    weights = list()
+    tbar = tqdm(dataset)
+    for index, (image, mask) in enumerate(tbar):
+        flag = exist_mask(mask)
+        # 存在掩膜的样本的采样权重为3，不存在的为1
+        if flag:
+            weights.append(weights_sample[1])
+        else:
+            weights.append(weights_sample[0])
+        descript = 'Image %d, flag: %d' % (index, flag)
+        tbar.set_description(descript)
+
+    print('Finish calculating weights of sample...')
+    return weights
+
+
+def get_loader(train_image, train_mask, val_image, val_mask, image_size=224, batch_size=2, num_workers=2, augmentation_flag=False, weights_sample=None):
     """Builds and returns Dataloader."""
     # train loader
     dataset_train = SIIMDataset(train_image, train_mask, image_size, augmentation_flag)
-    train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
     # val loader, 验证集要保证augmentation_flag为False
-    dataset_val = SIIMDataset(val_image, val_mask, image_size, augmentation_flag=False)
+    dataset_val = SIIMDataset(val_image, val_mask, image_size, augmentation_flag=False)    
+    
+    # 依据weigths_sample决定是否对训练集的样本进行采样
+    if weights_sample:
+        if os.path.exists('weights_sample.pkl'):
+            print('Extract weights of sample from: weights_sample.pkl...')
+            with open('weights_sample.pkl', 'rb') as f:
+                weights = pickle.load(f)
+        else:
+            print('Calculating weights of sample...')
+            weights = weight_mask(dataset_train, weights_sample)
+            with open('weights_sample.pkl', 'wb') as f:
+                pickle.dump(weights, f)            
+        sampler = WeightedRandomSampler(weights, num_samples=len(dataset_train), replacement=True)
+        train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True)
+    else: 
+        train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
+    
     val_data_loader = DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
 
     return train_data_loader, val_data_loader

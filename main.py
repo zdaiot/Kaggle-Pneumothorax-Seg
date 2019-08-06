@@ -68,7 +68,7 @@ def main(config):
 
         # 对于第一个阶段方法的处理
         train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage1,
-                                        config.batch_size_stage1, config.num_workers, config.augmentation_flag)
+                                        config.batch_size_stage1, config.num_workers, config.augmentation_flag, weights_sample=config.weight_sample)
         solver = Train(config, train_loader, val_loader)
         # 针对不同mode，在第一阶段的处理方式
         if config.mode == 'train':
@@ -90,7 +90,7 @@ def main(config):
         if config.two_stage == True:
             del train_loader, val_loader
             train_loader_, val_loader_ = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
-                                        config.batch_size_stage2, config.num_workers, config.augmentation_flag)
+                                        config.batch_size_stage2, config.num_workers, config.augmentation_flag, weights_sample=config.weight_sample)
             # 更新类的训练集以及验证集
             solver.train_loader, solver.val_loader = train_loader_, val_loader_
             
@@ -176,6 +176,7 @@ if __name__ == '__main__':
         parser.add_argument('--model_path', type=str, default='./checkpoints')
         parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
         parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask')
+        parser.add_argument('--weight_sample', type=list, default=0)
 
         config = parser.parse_args()
         # config = {k: v for k, v in args._get_kwargs()}
