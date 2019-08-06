@@ -154,6 +154,13 @@ class Test(object):
             pred: 最后预测的结果
         """
         preds = np.zeros([self.image_size, self.image_size])
+        # 768大小
+        # image_resize = image.resize((768, 768))
+        # resize_pred = self.detection(image_resize)
+        # resize_pred_img = Image.fromarray(resize_pred)
+        # resize_pred_img = resize_pred_img.resize((1024, 1024))
+        # preds += np.asarray(resize_pred_img)
+
         # 左右翻转
         image_hflip = image.transpose(Image.FLIP_LEFT_RIGHT)
 
@@ -195,4 +202,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.38, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=1024, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.67, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048, csv_path=csv_path, test_image_path=test_image_path)
