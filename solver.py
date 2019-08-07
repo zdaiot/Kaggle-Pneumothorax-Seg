@@ -1,5 +1,6 @@
 import os, shutil
 import numpy as np
+from PIL import Image
 import time
 import datetime
 import torch
@@ -11,9 +12,11 @@ from utils.mask_functions import write_txt
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
 from models.linknet import LinkNet34
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
+from datasets.siim import image_transform, mask_transform, augmentation
 import csv
 import matplotlib.pyplot as plt
 import tqdm
+import random
 from backboned_unet import Unet
 from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss
 from torch.utils.tensorboard import SummaryWriter
@@ -59,6 +62,8 @@ class Train(object):
         self.epoch_stage2 = config.epoch_stage2
         self.epoch_stage2_accumulation = config.epoch_stage2_accumulation
         self.accumulation_steps = config.accumulation_steps
+        self.scales = config.multi_scales
+        self.aug_flag = config.augmentation_flag
 
         # 模型初始化
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -131,6 +136,52 @@ class Train(object):
             write_txt(self.save_path, '%s is Successfully Loaded from %s' % (self.model_type, weight_path))
         else:
             raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
+    
+    def scale_transfer(self, images, masks, image_size, aug_flag=False):
+        """对图片和掩膜进行尺度转换
+
+        Args:
+            images: batch，图片
+            masks: batch，掩膜
+            image_size: 图片大小
+            aug_flag: 是否进行数据增强
+        """
+        batch = images.size(0)
+        image_channel = images.size(3)
+        images_transfer = torch.zeros(batch, image_channel, image_size, image_size)
+        masks_transfer = torch.zeros(batch, image_size, image_size)
+        for index in range(batch):
+            image = images[index]
+            mask = masks[index]
+            if aug_flag:
+                image, mask = augmentation(image, mask)
+            else:
+                image, mask = image.numpy(), mask.numpy()
+                image, mask = Image.fromarray(image), Image.fromarray(mask)
+            image = image_transform(image, image_size)
+            mask = mask_transform(mask, image_size)
+            images_transfer[index] = image
+            masks_transfer[index] = mask
+        
+        return images_transfer, masks_transfer
+
+    def inference(self, images, masks):
+        """进行模型的前向传播，得到损失
+
+        Args:
+            images: 图片
+            masks: 掩膜
+        
+        Return:
+            loss: 损失
+        """
+        # SR : Segmentation Result
+        net_output = self.unet(images)
+        net_output_flat = net_output.view(net_output.size(0), -1)
+        masks_flat = masks.view(masks.size(0), -1)
+        loss = self.criterion(net_output_flat, masks_flat)
+
+        return loss
 
     def train(self, index):
         # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-4}, {'params': self.unet.encoder.parameters(), 'lr': 1e-6},])
@@ -169,22 +220,36 @@ class Train(object):
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
             for i, (images, masks) in enumerate(tbar):
+                # 对样本进行预处理
+                if i % 100 == 0:
+                    size = random.choice(self.scales)
+                images, masks = self.scale_transfer(images, masks, size, aug_flag=self.aug_flag)
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
 
-                # SR : Segmentation Result
-                net_output = self.unet(images)
-                net_output_flat = net_output.view(net_output.size(0), -1)
-                masks_flat = masks.view(masks.size(0), -1)
-                loss = self.criterion(net_output_flat, masks_flat)
-                epoch_loss += loss.item()
-
-                # Backprop + optimize
-                self.reset_grad()
-                loss.backward()
-                self.optimizer.step()
+                # 不同图片大小对显存的需求不同，因而采取不同的策略
+                batch_loss = 0
+                if size == 1024:
+                    batch_size_split = int(images.size(0) / 2)
+                    for i in range(2):
+                        # 选择一部分的样本
+                        images_split = images[i*batch_size_split : (i+1)*batch_size_split]
+                        masks_split = masks[i*batch_size_split : (i+1)*batch_size_split]
+                        loss = self.inference(images_split, masks_split)
+                        batch_loss += loss.item()
+                        self.reset_grad()
+                        loss.backward()
+                        self.optimizer.step()
+                    batch_loss = batch_loss / 2
+                else:
+                    loss = self.inference(images, masks)
+                    batch_loss = loss.item()
+                    self.reset_grad()
+                    loss.backward()
+                    self.optimizer.step()
                 
+                epoch_loss += batch_loss
                 params_groups_lr = str()
                 for group_ind, param_group in enumerate(self.optimizer.param_groups):
                     params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
@@ -192,7 +257,7 @@ class Train(object):
                 # 保存到tensorboard，每一步存储一个
                 self.writer.add_scalar('Stage1_train_loss', loss.item(), global_step_before+i)
 
-                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
+                descript = "Train Loss: %.7f, lr: %s" % (batch_loss, params_groups_lr)
                 tbar.set_description(desc=descript)
             # 更新global_step_before为下次迭代做准备
             global_step_before += len(tbar)
@@ -223,114 +288,7 @@ class Train(object):
 
             # 学习率衰减
             lr_scheduler.step()
-
-    def train_stage2(self, index):
-        # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-5}, {'params': self.unet.encoder.parameters(), 'lr': 1e-7},])
-        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay)
-
-        # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
-        if self.resume:
-            # 若第二个阶段训练一半，要重新加载
-            if self.resume.split('_')[2] == '2':
-                self.load_checkpoint(load_optimizer=True) # 当load_optimizer为True会重新加载学习率和优化器
-                '''
-                CosineAnnealingLR：若存在['initial_lr']，则从initial_lr开始衰减；
-                若不存在，则执行CosineAnnealingLR会在optimizer.param_groups中添加initial_lr键值，其值等于lr
-
-                重置初始学习率，在load_checkpoint中会加载优化器，但其中的initial_lr还是之前的，所以需要覆盖为self.lr，让其从self.lr衰减
-                '''
-                self.optimizer.param_groups[0]['initial_lr'] = self.lr
-
-            # 若第一阶段结束后没有直接进行第二个阶段，中间暂停了
-            elif self.resume.split('_')[2] == '1':
-                self.load_checkpoint(load_optimizer=False)
-                self.start_epoch = 0
-                self.max_dice = 0
-
-        # 第一阶段结束后直接进行第二个阶段，中间并没有暂停
-        else:
-            self.start_epoch = 0
-            self.max_dice = 0
-
-        # 防止训练到一半暂停重新训练，日志被覆盖
-        global_step_before = self.start_epoch*len(self.train_loader)
-
-        stage2_epoches = self.epoch_stage2 - self.start_epoch
-        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage2_epoches+5)
-
-        for epoch in range(self.start_epoch, self.epoch_stage2):
-            epoch += 1
-            self.unet.train(True)
-            epoch_loss = 0
-
-            self.reset_grad() # 梯度累加的时候需要使用
-            
-            tbar = tqdm.tqdm(self.train_loader)
-            for i, (images, masks) in enumerate(tbar):
-                # GT : Ground Truth
-                images = images.to(self.device)
-                masks = masks.to(self.device)
-                assert images.size(2) == 1024
-
-                # SR : Segmentation Result
-                net_output = self.unet(images)
-                net_output_flat = net_output.view(net_output.size(0), -1)
-                masks_flat = masks.view(masks.size(0), -1)
-                loss = self.criterion(net_output_flat, masks_flat)
-                epoch_loss += loss.item()
-
-                # Backprop + optimize, see https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20 for Accumulating Gradients
-                if epoch <= self.epoch_stage2 - self.epoch_stage2_accumulation:
-                    self.reset_grad()
-                    loss.backward()
-                    self.optimizer.step()
-                else:
-                    # loss = loss / self.accumulation_steps                # Normalize our loss (if averaged)
-                    loss.backward()                                      # Backward pass
-                    if (i+1) % self.accumulation_steps == 0:             # Wait for several backward steps
-                        self.optimizer.step()                            # Now we can do an optimizer step
-                        self.reset_grad()
-
-                params_groups_lr = str()
-                for group_ind, param_group in enumerate(self.optimizer.param_groups):
-                    params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
-
-                # 保存到tensorboard，每一步存储一个
-                self.writer.add_scalar('Stage2_train_loss', loss.item(), global_step_before+i)
-
-                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
-                tbar.set_description(desc=descript)
-            # 更新global_step_before为下次迭代做准备
-            global_step_before += len(tbar)
-
-            # Print the log info
-            print('Finish Stage2 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
-            write_txt(self.save_path, 'Finish Stage2 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
-
-            # 验证模型，保存权重，并保存日志
-            loss_mean, dice_mean = self.validation()
-            if dice_mean > self.max_dice: 
-                is_best = True
-                self.max_dice = dice_mean
-            else: is_best = False
-            
-            self.lr = lr_scheduler.get_lr()            
-            state = {'epoch': epoch,
-                'state_dict': self.unet.module.state_dict(),
-                'max_dice': self.max_dice,
-                'optimizer' : self.optimizer.state_dict(),
-                'lr' : self.lr}
-            
-            self.save_checkpoint(state, 2, index, is_best)
-
-            self.writer.add_scalar('Stage2_val_loss', loss_mean, epoch)
-            self.writer.add_scalar('Stage2_val_dice', dice_mean, epoch)
-            self.writer.add_scalar('Stage2_lr', self.lr[0], epoch)
-
-            # 学习率衰减
-            lr_scheduler.step()
-            
-
+         
     def validation(self):
         # 验证的时候，train(False)是必须的0，设置其中的BN层、dropout等为eval模式
         # with torch.no_grad(): 可以有，在这个上下文管理器中，不反向传播，会加快速度，可以使用较大batch size
@@ -339,24 +297,53 @@ class Train(object):
         loss_sum, dice_sum = 0, 0
         with torch.no_grad(): 
             for i, (images, masks) in enumerate(tbar):
-                images = images.to(self.device)
-                masks = masks.to(self.device)
+                loss_batch = 0
+                dice_batch = 0
+                # 在三个尺度上进行验证
+                for image_size in self.scales:
+                    images, masks = self.scale_transfer(images, masks, image_size, aug_flag=False)
+                    images = images.to(self.device)
+                    masks = masks.to(self.device)   
+                    
+                    # 不同尺度采取不同的处理方法
+                    if image_size == 1024:
+                        loss_split = 0
+                        dice_split = 0
+                        batch_size_split = int(images.size(0)/2)
+                        for i in range(2):
+                            images_split = images[i*batch_size_split : (i+1)*batch_size_split]
+                            masks_split = masks[i*batch_size_split : (i+1)*batch_size_split]
+                            net_output = self.unet(images_split)
+                            net_output_flat = net_output.view(net_output.size(0), -1)
+                            masks_split_flat = masks_split.view(masks_split.size(0), -1)
+                            loss = self.criterion(net_output_flat, masks_split_flat)
+                            loss_split += loss.item()
+                            net_output_flat_sign = (torch.sigmoid(net_output_flat>0.5).float())
+                            dice = self.dice_overall(net_output_flat_sign, masks_split_flat).mean()
+                            dice_split += dice.item()
+                        loss_batch += loss_split / 2
+                        dice_batch += dice_split / 2
+                    else:
+                        net_output = self.unet(images)
+                        net_output_flat = net_output.view(net_output.size(0), -1)
+                        masks_flat = masks.view(masks.size(0), -1)
+                        loss = self.criterion(net_output_flat, masks_flat)
+                        loss_batch += loss.item()
 
-                net_output = self.unet(images)
-                net_output_flat = net_output.view(net_output.size(0), -1)
-                masks_flat = masks.view(masks.size(0), -1)
+                        # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
+                        net_output_flat_sign = (torch.sigmoid(net_output_flat)>0.5).float()
+                        dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
+                        dice_batch += dice.item()
                 
-                loss = self.criterion(net_output_flat, masks_flat)
-                loss_sum += loss.item()
+                loss_batch /= 3
+                dice_batch /= 3
+                loss_sum += loss_batch
+                dice_sum += dice_batch
 
-                # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
-                net_output_flat_sign = (torch.sigmoid(net_output_flat)>0.5).float()
-                dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
-                dice_sum += dice.item()
-
-                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
+                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss_batch, dice_batch)
                 tbar.set_description(desc=descript)
         
+        # 整个验证集上的损失和dice
         loss_mean, dice_mean = loss_sum/len(tbar), dice_sum/len(tbar)
         print("Val Loss: {:.7f}, dice: {:.7f}".format(loss_mean, dice_mean))
         write_txt(self.save_path, "Val Loss: {:.7f}, dice: {:.7f}".format(loss_mean, dice_mean))
@@ -386,7 +373,7 @@ class Train(object):
         
         return (2. * intersect / union)
 
-    def choose_threshold(self, model_path, index):
+    def choose_threshold(self, model_path, index, image_size):
         self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
         print('Loaded from %s' % model_path)
         self.unet.eval()
@@ -399,6 +386,7 @@ class Train(object):
                 tmp = []
                 tbar = tqdm.tqdm(self.valid_loader)
                 for i, (images, masks) in enumerate(tbar):
+                    images, masks = self.scale_transfer(images, masks, image_size, aug_flag=False)
                     # GT : Ground Truth
                     images = images.to(self.device)
                     net_output = torch.sigmoid(self.unet(images))

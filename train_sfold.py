@@ -75,55 +75,41 @@ def main(config):
         val_image = [images_path[x] for x in val_index]
         val_mask = [masks_path[x] for x in val_index]
 
-        # 对于第一个阶段方法的处理
-        train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage1,
-                                        config.batch_size_stage1, config.num_workers, config.stage1_augmentation_flag, weights_sample=config.weight_sample)
-        solver = Train(config, train_loader, val_loader)
-        # 针对不同mode，在第一阶段的处理方式
         if config.mode == 'train':
+            # 对于第一个阶段方法的处理
+            train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask,
+                                            config.batch_size, config.num_workers, weights_sample=config.weight_sample)
+            solver = Train(config, train_loader, val_loader)
             solver.train(index)
-        elif config.mode == 'train_stage2':
-            pass
-        else:
-            # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
-            if config.two_stage == False:
-                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
-                scores.append(score)
-                best_thrs.append(best_thr)
-                best_pixel_thrs.append(best_pixel_thr)
-                result[str(index)] = [best_thr, best_pixel_thr, score]
-            else:
-                pass
 
-        # 对于第二个阶段的处理方法
-        if config.two_stage == True:
-            del train_loader, val_loader
-            train_loader_, val_loader_ = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
-                                        config.batch_size_stage2, config.num_workers, config.stage2_augmentation_flag, weights_sample=config.weight_sample)
-            # 更新类的训练集以及验证集
-            solver.train_loader, solver.val_loader = train_loader_, val_loader_
+        # 若为选阈值操作，则输出n_fold折验证集结果的平均值
+        elif config.mode == 'choose_threshold':
+            for scale_index, image_size in enumerate(config.multi_scales):
+                scores.append(list())
+                best_thrs.append(list())
+                best_pixel_thrs.append(list())
+
+                train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask,
+                                                config.multi_batchsize[scale_index], config.num_workers, weights_sample=config.weight_sample)
+                solver = Train(config, train_loader, val_loader)
+                model_state_path = os.path.join(config.save_path, '%s_%d_best.pth'%(config.model_type, index))
+                thresh, pix_thr, score = solver.choose_threshold(model_state_path, index, image_size)
             
-            # 针对不同mode，在第二阶段的处理方式
-            if config.mode == 'train' or config.mode == 'train_stage2':
-                solver.train_stage2(index)
-            else:
-                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
-                scores.append(score)
-                best_thrs.append(best_thr)
-                best_pixel_thrs.append(best_pixel_thr)
-                result[str(index)] = [best_thr, best_pixel_thr, score]
+                scores[scale_index].append(score)
+                best_thrs[scale_index].append(thresh)
+                best_pixel_thrs[scale_index].append(pix_thr)
+    
+    score_mean = np.mean(np.array(scores), axis=1)
+    thr_mean = np.mean(np.array(best_thrs), axis=1)
+    pixel_thr_mean = np.mean(np.array(best_pixel_thrs), axis=1)
 
-    # 若为选阈值操作，则输出n_fold折验证集结果的平均值
-    if config.mode == 'choose_threshold':
-        score_mean = np.array(scores).mean()
-        thr_mean = np.array(best_thrs).mean()
-        pixel_thr_mean = np.array(best_pixel_thrs).mean()
-        print('score_mean:{}, thr_mean:{}, pixel_thr_mean:{}'.format(score_mean, thr_mean, pixel_thr_mean))
-        result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
+    for i, image_size in enumerate(config.multi_scales):
+        print('Image_size: %d, score_mean: %f, thr_maen: %f, pixel_thr_mean:%f'%(image_size, score_mean[i], thr_mean[i], pixel_thr_mean[i]))
 
-        with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
-            json.dump(result, json_file, ensure_ascii=False)
-        print('save the result')
+    result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
+    with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
+        json.dump(result, json_file, ensure_ascii=False)
+    print('save the result')
 
 
 if __name__ == '__main__':
@@ -153,7 +139,7 @@ if __name__ == '__main__':
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--batch_size', type=int, default=20, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
@@ -163,13 +149,12 @@ if __name__ == '__main__':
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
-        parser.add_argument('--stage1_augmentation_flag', type=bool, default=True, help='if true, use augmentation method in stage1 train set')
-        parser.add_argument('--stage2_augmentation_flag', type=bool, default=False, help='if true, use augmentation method in stage2 train set')
+        parser.add_argument('--augmentation_flag', type=bool, default=True, help='if true, use augmentation method in train set')
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set
-        parser.add_argument('--resume', type=str, default='unet_resnet34_1_0_best.pth', help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train_stage2', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
+        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34')
 
         # model hyper-parameters
@@ -181,13 +166,16 @@ if __name__ == '__main__':
         parser.add_argument('--lr', type=float, default=2e-4, help='init lr in stage1')
         parser.add_argument('--lr_stage2', type=float, default=5e-6, help='init lr in stage2')
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
+        parser.add_argument('--multi_scales', type=list, default=[512, 768, 1024], help='images size of mutil scales')
+        # chose threshold barch_size
+        parser.add_argument('--multi_batchsize', type=list, default=[20, 20, 10], help='batch size of mutil scales')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')
         parser.add_argument('--dataset_root', type=str, default='./datasets/SIIM_data')
         parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
         parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask')
-        parser.add_argument('--weight_sample', type=list, default=[1, 3], help='sample weight of class')
+        parser.add_argument('--weight_sample', type=list, default=0, help='sample weight of class')
 
         config = parser.parse_args()
         # config = {k: v for k, v in args._get_kwargs()}
