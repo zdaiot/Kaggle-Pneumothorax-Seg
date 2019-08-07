@@ -219,9 +219,9 @@ class Train(object):
 
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
-            for i, (images, masks) in enumerate(tbar):
+            for iter_index, (images, masks) in enumerate(tbar):
                 # 对样本进行预处理
-                if i % 100 == 0:
+                if iter_index % 100 == 0:
                     size = random.choice(self.scales)
                 images, masks = self.scale_transfer(images, masks, size, aug_flag=self.aug_flag)
                 # GT : Ground Truth
@@ -232,10 +232,10 @@ class Train(object):
                 batch_loss = 0
                 if size == 1024:
                     batch_size_split = int(images.size(0) / 2)
-                    for i in range(2):
+                    for split_index in range(2):
                         # 选择一部分的样本
-                        images_split = images[i*batch_size_split : (i+1)*batch_size_split]
-                        masks_split = masks[i*batch_size_split : (i+1)*batch_size_split]
+                        images_split = images[split_index * batch_size_split:(split_index + 1) * batch_size_split]
+                        masks_split = masks[split_index * batch_size_split:(split_index + 1) * batch_size_split]
                         loss = self.inference(images_split, masks_split)
                         batch_loss += loss.item()
                         self.reset_grad()
@@ -255,23 +255,24 @@ class Train(object):
                     params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
 
                 # 保存到tensorboard，每一步存储一个
-                self.writer.add_scalar('Stage1_train_loss', loss.item(), global_step_before+i)
+                self.writer.add_scalar('Train_loss', batch_loss, global_step_before + iter_index)
 
-                descript = "Train Loss: %.7f, lr: %s" % (batch_loss, params_groups_lr)
+                descript = "Size: %d, Train Loss: %.7f, lr: %s" % (size, batch_loss, params_groups_lr)
                 tbar.set_description(desc=descript)
             # 更新global_step_before为下次迭代做准备
             global_step_before += len(tbar)
 
             # Print the log info
-            print('Finish Stage1 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
-            write_txt(self.save_path, 'Finish Stage1 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
+            print('Finish Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Finish Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
 
             # 验证模型，保存权重，并保存日志
             loss_mean, dice_mean = self.validation()
             if dice_mean > self.max_dice: 
                 is_best = True
                 self.max_dice = dice_mean
-            else: is_best = False
+            else: 
+                is_best = False
             
             self.lr = lr_scheduler.get_lr()
             state = {'epoch': epoch,
@@ -282,9 +283,9 @@ class Train(object):
             
             self.save_checkpoint(state, 1, index, is_best)
 
-            self.writer.add_scalar('Stage1_val_loss', loss_mean, epoch)
-            self.writer.add_scalar('Stage1_val_dice', dice_mean, epoch)
-            self.writer.add_scalar('Stage1_lr', self.lr[0], epoch)
+            self.writer.add_scalar('val_loss', loss_mean, epoch)
+            self.writer.add_scalar('val_dice', dice_mean, epoch)
+            self.writer.add_scalar('lr', self.lr[0], epoch)
 
             # 学习率衰减
             lr_scheduler.step()
@@ -296,42 +297,42 @@ class Train(object):
         tbar = tqdm.tqdm(self.valid_loader)
         loss_sum, dice_sum = 0, 0
         with torch.no_grad(): 
-            for i, (images, masks) in enumerate(tbar):
+            for iter_index, (images, masks) in enumerate(tbar):
                 loss_batch = 0
                 dice_batch = 0
                 # 在三个尺度上进行验证
                 for image_size in self.scales:
-                    images, masks = self.scale_transfer(images, masks, image_size, aug_flag=False)
-                    images = images.to(self.device)
-                    masks = masks.to(self.device)   
+                    images_resize, masks_resize = self.scale_transfer(images, masks, image_size, aug_flag=False)
+                    images_resize = images_resize.to(self.device)
+                    masks_resize = masks_resize.to(self.device)   
                     
                     # 不同尺度采取不同的处理方法
                     if image_size == 1024:
                         loss_split = 0
                         dice_split = 0
-                        batch_size_split = int(images.size(0)/2)
-                        for i in range(2):
-                            images_split = images[i*batch_size_split : (i+1)*batch_size_split]
-                            masks_split = masks[i*batch_size_split : (i+1)*batch_size_split]
+                        batch_size_split = int(images_resize.size(0)/2)
+                        for split_index in range(2):
+                            images_split = images_resize[split_index * batch_size_split:(split_index+1) * batch_size_split]
+                            masks_split = masks_resize[split_index * batch_size_split:(split_index+1) * batch_size_split]
                             net_output = self.unet(images_split)
                             net_output_flat = net_output.view(net_output.size(0), -1)
                             masks_split_flat = masks_split.view(masks_split.size(0), -1)
                             loss = self.criterion(net_output_flat, masks_split_flat)
                             loss_split += loss.item()
-                            net_output_flat_sign = (torch.sigmoid(net_output_flat>0.5).float())
+                            net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
                             dice = self.dice_overall(net_output_flat_sign, masks_split_flat).mean()
                             dice_split += dice.item()
                         loss_batch += loss_split / 2
                         dice_batch += dice_split / 2
                     else:
-                        net_output = self.unet(images)
+                        net_output = self.unet(images_resize)
                         net_output_flat = net_output.view(net_output.size(0), -1)
-                        masks_flat = masks.view(masks.size(0), -1)
+                        masks_flat = masks_resize.view(masks_resize.size(0), -1)
                         loss = self.criterion(net_output_flat, masks_flat)
                         loss_batch += loss.item()
 
                         # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
-                        net_output_flat_sign = (torch.sigmoid(net_output_flat)>0.5).float()
+                        net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
                         dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
                         dice_batch += dice.item()
                 
@@ -344,7 +345,7 @@ class Train(object):
                 tbar.set_description(desc=descript)
         
         # 整个验证集上的损失和dice
-        loss_mean, dice_mean = loss_sum/len(tbar), dice_sum/len(tbar)
+        loss_mean, dice_mean = loss_sum / len(tbar), dice_sum / len(tbar)
         print("Val Loss: {:.7f}, dice: {:.7f}".format(loss_mean, dice_mean))
         write_txt(self.save_path, "Val Loss: {:.7f}, dice: {:.7f}".format(loss_mean, dice_mean))
         return loss_mean, dice_mean
@@ -385,7 +386,7 @@ class Train(object):
             for th in thrs_big:
                 tmp = []
                 tbar = tqdm.tqdm(self.valid_loader)
-                for i, (images, masks) in enumerate(tbar):
+                for iter_index, (images, masks) in enumerate(tbar):
                     images, masks = self.scale_transfer(images, masks, image_size, aug_flag=False)
                     # GT : Ground Truth
                     images = images.to(self.device)
@@ -403,7 +404,7 @@ class Train(object):
             for th in thrs_little:
                 tmp = []
                 tbar = tqdm.tqdm(self.valid_loader)
-                for i, (images, masks) in enumerate(tbar):
+                for iter_index, (images, masks) in enumerate(tbar):
                     # GT : Ground Truth
                     images = images.to(self.device)
                     net_output = torch.sigmoid(self.unet(images))
@@ -421,7 +422,7 @@ class Train(object):
             for pixel_thr in pixel_thrs:
                 tmp = []
                 tbar = tqdm.tqdm(self.valid_loader)
-                for i, (images, masks) in enumerate(tbar):
+                for iter_index, (images, masks) in enumerate(tbar):
                     # GT : Ground Truth
                     images = images.to(self.device)
                     net_output = torch.sigmoid(self.unet(images))
