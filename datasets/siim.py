@@ -209,8 +209,7 @@ def get_loader(train_image, train_mask, val_image, val_mask, batch_size=2, num_w
         train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, 
                                         collate_fn=multi_scale_collate_fn, pin_memory=True)
     
-    val_data_loader = DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=True, 
-                                    collate_fn=multi_scale_collate_fn, pin_memory=True)
+    val_data_loader = DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
 
     return train_data_loader, val_data_loader
 

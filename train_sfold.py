@@ -82,23 +82,36 @@ def main(config):
             solver = Train(config, train_loader, val_loader)
             solver.train(index)
 
-        # 若为选阈值操作，则输出n_fold折验证集结果的平均值
+        # 选阈值操作
         elif config.mode == 'choose_threshold':
-            train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask,
-                                            config.chose_thresh_batch_size, config.num_workers, weights_sample=config.weight_sample)
-            solver = Train(config, train_loader, val_loader)
-            model_state_path = os.path.join(config.save_path, '%s_%d_best.pth'%(config.model_type, index))
-            thresh, pix_thr, score = solver.choose_threshold(model_state_path, index, image_size)
-        
-            scores.append(score)
-            best_thrs.append(thresh)
-            best_pixel_thrs.append(pix_thr)
+            # 每一折在三个尺度上计算分数、阈值
+            for scale_index, image_size in enumerate(config.multi_scales):
+                scores.append(list())
+                best_thrs.append(list())
+                best_pixel_thrs.append(list())
+
+                train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask,
+                                                config.multi_batchsize[scale_index], config.num_workers, weights_sample=config.weight_sample)
+                solver = Train(config, train_loader, val_loader)
+                model_state_path = os.path.join(config.save_path, '%s_%d_best.pth'%(config.model_type, index))
+                thresh, pix_thr, score = solver.choose_threshold(model_state_path, index, image_size)
+            
+                scores[scale_index].append(score)
+                best_thrs[scale_index].append(thresh)
+                best_pixel_thrs[scale_index].append(pix_thr)
+    
+    # 计算各尺度在５折上的分数、阈值的均值
+    score_mean = np.mean(np.array(scores), axis=1)
+    thr_mean = np.mean(np.array(best_thrs), axis=1)
+    pixel_thr_mean = np.mean(np.array(best_pixel_thrs), axis=1)
     
     score_mean = np.mean(np.array(scores))
     thr_mean = np.mean(np.array(best_thrs))
     pixel_thr_mean = np.mean(np.array(best_pixel_thrs))
 
-    print('score_mean: %f, thr_maen: %f, pixel_thr_mean:%f'%(score_mean, thr_mean, pixel_thr_mean))
+    for i, image_size in enumerate(config.multi_scales):
+        print('Image_size: %d, score_mean: %f, thr_maen: %f, pixel_thr_mean:%f'\
+            %(image_size, score_mean[i], thr_mean[i], pixel_thr_mean[i]))
 
     result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
     with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
