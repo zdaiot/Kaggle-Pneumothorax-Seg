@@ -84,27 +84,21 @@ def main(config):
 
         # 若为选阈值操作，则输出n_fold折验证集结果的平均值
         elif config.mode == 'choose_threshold':
-            for scale_index, image_size in enumerate(config.multi_scales):
-                scores.append(list())
-                best_thrs.append(list())
-                best_pixel_thrs.append(list())
-
-                train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask,
-                                                config.multi_batchsize[scale_index], config.num_workers, weights_sample=config.weight_sample)
-                solver = Train(config, train_loader, val_loader)
-                model_state_path = os.path.join(config.save_path, '%s_%d_best.pth'%(config.model_type, index))
-                thresh, pix_thr, score = solver.choose_threshold(model_state_path, index, image_size)
-            
-                scores[scale_index].append(score)
-                best_thrs[scale_index].append(thresh)
-                best_pixel_thrs[scale_index].append(pix_thr)
+            train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask,
+                                            config.chose_thresh_batch_size, config.num_workers, weights_sample=config.weight_sample)
+            solver = Train(config, train_loader, val_loader)
+            model_state_path = os.path.join(config.save_path, '%s_%d_best.pth'%(config.model_type, index))
+            thresh, pix_thr, score = solver.choose_threshold(model_state_path, index, image_size)
+        
+            scores.append(score)
+            best_thrs.append(thresh)
+            best_pixel_thrs.append(pix_thr)
     
-    score_mean = np.mean(np.array(scores), axis=1)
-    thr_mean = np.mean(np.array(best_thrs), axis=1)
-    pixel_thr_mean = np.mean(np.array(best_pixel_thrs), axis=1)
+    score_mean = np.mean(np.array(scores))
+    thr_mean = np.mean(np.array(best_thrs))
+    pixel_thr_mean = np.mean(np.array(best_pixel_thrs))
 
-    for i, image_size in enumerate(config.multi_scales):
-        print('Image_size: %d, score_mean: %f, thr_maen: %f, pixel_thr_mean:%f'%(image_size, score_mean[i], thr_mean[i], pixel_thr_mean[i]))
+    print('score_mean: %f, thr_maen: %f, pixel_thr_mean:%f'%(score_mean, thr_mean, pixel_thr_mean))
 
     result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
     with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
@@ -139,7 +133,7 @@ if __name__ == '__main__':
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--batch_size', type=int, default=18, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
@@ -168,7 +162,7 @@ if __name__ == '__main__':
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
         parser.add_argument('--multi_scales', type=list, default=[512, 768, 1024], help='images size of mutil scales')
         # chose threshold barch_size
-        parser.add_argument('--multi_batchsize', type=list, default=[20, 20, 10], help='batch size of mutil scales')
+        parser.add_argument('--chose_thresh_batch_size', type=int, default=10, help='batch size of chosethreshold')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')

@@ -220,10 +220,7 @@ class Train(object):
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
             for iter_index, (images, masks) in enumerate(tbar):
-                # 对样本进行预处理
-                if iter_index % 100 == 0:
-                    size = random.choice(self.scales)
-                images, masks = self.scale_transfer(images, masks, size, aug_flag=self.aug_flag)
+                size = images.size(2)
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
@@ -300,48 +297,45 @@ class Train(object):
             for iter_index, (images, masks) in enumerate(tbar):
                 loss_batch = 0
                 dice_batch = 0
-                # 在三个尺度上进行验证
-                for image_size in self.scales:
-                    images_resize, masks_resize = self.scale_transfer(images, masks, image_size, aug_flag=False)
-                    images_resize = images_resize.to(self.device)
-                    masks_resize = masks_resize.to(self.device)   
-                    
-                    # 不同尺度采取不同的处理方法
-                    if image_size == 1024:
-                        loss_split = 0
-                        dice_split = 0
-                        batch_size_split = int(images_resize.size(0)/2)
-                        for split_index in range(2):
-                            images_split = images_resize[split_index * batch_size_split:(split_index+1) * batch_size_split]
-                            masks_split = masks_resize[split_index * batch_size_split:(split_index+1) * batch_size_split]
-                            net_output = self.unet(images_split)
-                            net_output_flat = net_output.view(net_output.size(0), -1)
-                            masks_split_flat = masks_split.view(masks_split.size(0), -1)
-                            loss = self.criterion(net_output_flat, masks_split_flat)
-                            loss_split += loss.item()
-                            net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
-                            dice = self.dice_overall(net_output_flat_sign, masks_split_flat).mean()
-                            dice_split += dice.item()
-                        loss_batch += loss_split / 2
-                        dice_batch += dice_split / 2
-                    else:
-                        net_output = self.unet(images_resize)
-                        net_output_flat = net_output.view(net_output.size(0), -1)
-                        masks_flat = masks_resize.view(masks_resize.size(0), -1)
-                        loss = self.criterion(net_output_flat, masks_flat)
-                        loss_batch += loss.item()
 
-                        # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
-                        net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
-                        dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
-                        dice_batch += dice.item()
+                image_size = images.size(2)
+                images = images.to(self.device)
+                masks = masks.to(self.device)   
                 
-                loss_batch /= 3
-                dice_batch /= 3
+                # 不同尺度采取不同的处理方法
+                if image_size == 1024:
+                    loss_split = 0
+                    dice_split = 0
+                    batch_size_split = int(images.size(0)/2)
+                    for split_index in range(2):
+                        images_split = images[split_index * batch_size_split:(split_index+1) * batch_size_split]
+                        masks_split = masks[split_index * batch_size_split:(split_index+1) * batch_size_split]
+                        net_output = self.unet(images_split)
+                        net_output_flat = net_output.view(net_output.size(0), -1)
+                        masks_split_flat = masks_split.view(masks_split.size(0), -1)
+                        loss = self.criterion(net_output_flat, masks_split_flat)
+                        loss_split += loss.item()
+                        net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
+                        dice = self.dice_overall(net_output_flat_sign, masks_split_flat).mean()
+                        dice_split += dice.item()
+                    loss_batch = loss_split / 2
+                    dice_batch = dice_split / 2
+                else:
+                    net_output = self.unet(images)
+                    net_output_flat = net_output.view(net_output.size(0), -1)
+                    masks_flat = masks.view(masks.size(0), -1)
+                    loss = self.criterion(net_output_flat, masks_flat)
+                    loss_batch = loss.item()
+
+                    # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
+                    net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
+                    dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
+                    dice_batch = dice.item()
+
                 loss_sum += loss_batch
                 dice_sum += dice_batch
 
-                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss_batch, dice_batch)
+                descript = "Size: {:d}, Val Loss: {:.7f}, dice: {:.7f}".format(image_size, loss_batch, dice_batch)
                 tbar.set_description(desc=descript)
         
         # 整个验证集上的损失和dice
