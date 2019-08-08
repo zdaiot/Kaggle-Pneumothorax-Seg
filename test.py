@@ -25,10 +25,11 @@ import json
 
 
 class Test(object):
-    def __init__(self, model_type, image_size, mean, std, t=None):
+    def __init__(self, model_type, image_size, mean, std, multi_scale, t=None):
         # Models
         self.unet = None
-        self.image_size = image_size # 模型的输入大小
+        self.image_size = image_size # 预测结果的大小
+        self.multi_scale = multi_scale
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_type = model_type
@@ -59,7 +60,7 @@ class Test(object):
 
         self.unet.to(self.device)
 
-    def test_model(self, threshold, stage, n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None):
+    def test_model(self, threshold, stage, n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None, show_result=False):
         """
         threshold: 阈值，高于这个阈值的置为1，否则置为0
         stage: 测试第几阶段的结果
@@ -71,46 +72,98 @@ class Test(object):
 
         # 对于每一折加载模型，对所有测试集测试，并取平均
         sample_df = pd.read_csv(csv_path)
-        preds = np.zeros([len(sample_df), self.image_size, self.image_size])
+        preds_folds = np.zeros([len(sample_df), self.image_size, self.image_size])
 
+        fold_num = 0
         for fold in range(n_splits):
+            if fold != 0:
+                print('Skip Flod: {}'.format(fold))
+                break
+            fold_num += 1
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 0))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, fold))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
             self.unet.eval()
             
+            # 单折的预测结果
+            preds_one_fold = np.zeros([len(sample_df), self.image_size, self.image_size])
             with torch.no_grad():
+                detection_tbar = tqdm(sample_df.iterrows(), total=len(sample_df))
                 # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
-                for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
+                for image_index, row in detection_tbar:
                     file = row['ImageId']
                     img_path = os.path.join(test_image_path, file.strip() + '.jpg')
                     img = Image.open(img_path).convert('RGB')
+                    # 对各个尺度依次进行检测
+                    scale_num = 0
+                    pred_scale = np.zeros([self.image_size, self.image_size])
+                    for scale_index, scale in enumerate(self.multi_scale):
+                        scale_num += 1
+                        thresh = threshold[scale_index]
+                        pixel_thrsh = less_than_sum[scale_index]
+                        img_resize = img.resize((scale, scale))
+                        pred = self.tta(img_resize)
+                        # 置信度阈值
+                        pred = np.where(pred>thresh, 1, 0)
+                        if np.sum(pred) < pixel_thrsh:
+                            pred[:] = 0
+                        pred_img = Image.fromarray(np.uint8(pred))
+                        pred_scale += np.asarray(pred_img.resize((self.image_size, self.image_size)))
                     
-                    pred = self.tta(img)
-                    preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
-            # 如果取消注释，则只测试一个fold的
-            n_splits = 1
-            break
+                    # 尺度之间进行投票
+                    if scale_num == 1:
+                        ticket_scale = 0
+                    elif scale_num == 3:
+                        ticket_scale = 2
+                    else:
+                        raise ValueError('Scale num should be one of [1, 3]')
+                    descript = 'Fold: %d, Scale num: %d' % (fold, scale_num)
+                    detection_tbar.set_description(desc=descript)
+                    pred_scale = np.where(pred_scale > ticket_scale, 1, 0)
+                    preds_one_fold[image_index, ...] = pred_scale
+            
+            preds_folds += preds_one_fold
 
         rle = []
         count_has_mask = 0
-        preds_average = preds/n_splits
-        for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
+        # 不同折使用不同的票数
+        if fold_num == 1:
+            ticket_thresh = 0
+        elif fold_num == 5:
+            ticket_thresh = 3
+        else:
+            raise ValueError('Fold num should be one of [1, 5]')
+        
+        encoder_tbar = tqdm(sample_df.iterrows(), total=len(sample_df))
+        for index, row in encoder_tbar:
             file = row['ImageId']
 
-            pred = cv2.resize(preds_average[index,...],(1024, 1024))
-            pred = np.where(pred>threshold, 1, 0)
+            # 折之间进行投票
+            pred = cv2.resize(preds_folds[index,...], (1024, 1024))
+            pred = np.where(pred > ticket_thresh, 1, 0)
 
-            if np.sum(pred) < less_than_sum:
-                pred[:] = 0
+            if show_result:
+                img_path = os.path.join(test_image_path, file.strip() + '.jpg')
+                img = cv2.imread(img_path)
+                pred_show = pred[:, :, np.newaxis]
+                mask_show = np.concatenate((pred_show, np.zeros((1024, 1024, 1)), np.zeros((1024, 1024, 1))), axis=2)
+                img[mask_show > 0] = 255
+
+                img_show = cv2.resize(img, (516, 516))
+                cv2.imshow('result', img_show)
+                cv2.waitKey(300)
+
             encoding = mask_to_rle(pred.T, 1024, 1024)
             if encoding == ' ':
                 rle.append([file.strip(), '-1'])
             else:
                 count_has_mask += 1
                 rle.append([file.strip(), encoding[1:]])
+
+            descript = 'Ticket thresh: %d, Mask num: %d'%(ticket_thresh, count_has_mask)
+            encoder_tbar.set_description(desc=descript)
 
         print('The number of masked pictures predicted:',count_has_mask)
         submission_df = pd.DataFrame(rle, columns=['ImageId','EncodedPixels'])
@@ -119,11 +172,10 @@ class Test(object):
     def image_transform(self, image):
         """对样本进行预处理
         """
-        resize = transforms.Resize(self.image_size)
         to_tensor = transforms.ToTensor()
         normalize = transforms.Normalize(self.mean, self.std)
 
-        transform_compose = transforms.Compose([resize, to_tensor, normalize])
+        transform_compose = transforms.Compose([to_tensor, normalize])
 
         return transform_compose(image)
     
@@ -135,12 +187,13 @@ class Test(object):
         Return:
             pred: 检测结果
         """
+        image_size = image.size[0]
         image = self.image_transform(image)
         image = torch.unsqueeze(image, dim=0)
         image = image.float().to(self.device)
         pred = torch.sigmoid(self.unet(image))
         # 预测出的结果
-        pred = pred.view(self.image_size, self.image_size)
+        pred = pred.view(image_size, image_size)
         pred = pred.detach().cpu().numpy()
 
         return pred
@@ -153,7 +206,8 @@ class Test(object):
         Return:
             pred: 最后预测的结果
         """
-        preds = np.zeros([self.image_size, self.image_size])
+        image_size = image.size[0]
+        preds = np.zeros([image_size, image_size])
         # 左右翻转
         image_hflip = image.transpose(Image.FLIP_LEFT_RIGHT)
 
@@ -189,10 +243,10 @@ if __name__ == "__main__":
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'unet_resnet34'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
-    stage, n_splits = 2, 5
-    if stage == 1:
-        image_size = 768
-    elif stage == 2:
-        image_size = 1024
-    solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.38, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=1024, csv_path=csv_path, test_image_path=test_image_path)
+    image_size = 1024
+    multi_scale = [768]
+    thresh = [0.75]
+    pixel_thresh = [768]
+    solver = Test(model_name, image_size, mean, std, multi_scale)
+    solver.test_model(threshold=thresh, stage=1, n_splits=5, test_best_model=True, 
+                        less_than_sum=pixel_thresh, csv_path=csv_path, test_image_path=test_image_path, show_result=True)

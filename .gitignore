@@ -6,4 +6,5 @@ result/*
 img
 datasets/SIIM_data/*
 submission.csv
+submission*
 dataset_static.pkl
