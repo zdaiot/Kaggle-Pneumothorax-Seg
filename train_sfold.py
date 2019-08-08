@@ -93,30 +93,30 @@ def main(config):
                 train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask,
                                                 config.multi_batchsize[scale_index], config.num_workers, weights_sample=config.weight_sample)
                 solver = Train(config, train_loader, val_loader)
-                model_state_path = os.path.join(config.save_path, '%s_%d_best.pth'%(config.model_type, index))
+                model_state_path = os.path.join(config.save_path, '%s_1_%d_best.pth'%(config.model_type, index))
                 thresh, pix_thr, score = solver.choose_threshold(model_state_path, index, image_size)
             
                 scores[scale_index].append(score)
                 best_thrs[scale_index].append(thresh)
                 best_pixel_thrs[scale_index].append(pix_thr)
     
-    # 计算各尺度在５折上的分数、阈值的均值
-    score_mean = np.mean(np.array(scores), axis=1)
-    thr_mean = np.mean(np.array(best_thrs), axis=1)
-    pixel_thr_mean = np.mean(np.array(best_pixel_thrs), axis=1)
-    
-    score_mean = np.mean(np.array(scores))
-    thr_mean = np.mean(np.array(best_thrs))
-    pixel_thr_mean = np.mean(np.array(best_pixel_thrs))
+            # 计算各尺度在５折上的分数、阈值的均值
+            score_mean = np.mean(np.array(scores), axis=1)
+            thr_mean = np.mean(np.array(best_thrs), axis=1)
+            pixel_thr_mean = np.mean(np.array(best_pixel_thrs), axis=1)
+            
+            score_mean = np.mean(np.array(scores))
+            thr_mean = np.mean(np.array(best_thrs))
+            pixel_thr_mean = np.mean(np.array(best_pixel_thrs))
 
-    for i, image_size in enumerate(config.multi_scales):
-        print('Image_size: %d, score_mean: %f, thr_maen: %f, pixel_thr_mean:%f'\
-            %(image_size, score_mean[i], thr_mean[i], pixel_thr_mean[i]))
+            for i, image_size in enumerate(config.multi_scales):
+                print('Image_size: %d, score_mean: %f, thr_maen: %f, pixel_thr_mean:%f'\
+                    %(image_size, score_mean[i], thr_mean[i], pixel_thr_mean[i]))
 
-    result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
-    with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
-        json.dump(result, json_file, ensure_ascii=False)
-    print('save the result')
+            result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
+            with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
+                json.dump(result, json_file, ensure_ascii=False)
+            print('save the result')
 
 
 if __name__ == '__main__':
@@ -161,7 +161,7 @@ if __name__ == '__main__':
 
         # model set
         parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--mode', type=str, default='choose_threshold', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34')
 
         # model hyper-parameters
@@ -175,7 +175,7 @@ if __name__ == '__main__':
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
         parser.add_argument('--multi_scales', type=list, default=[512, 768, 1024], help='images size of mutil scales')
         # chose threshold barch_size
-        parser.add_argument('--chose_thresh_batch_size', type=int, default=10, help='batch size of chosethreshold')
+        parser.add_argument('--multi_batchsize', type=int, default=[20, 20, 10], help='batch size of chosethreshold')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')
