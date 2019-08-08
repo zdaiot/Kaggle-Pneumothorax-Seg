@@ -402,6 +402,7 @@ class Train(object):
                 tmp = []
                 tbar = tqdm.tqdm(self.valid_loader)
                 for iter_index, (images, masks) in enumerate(tbar):
+                    images, masks = self.scale_transfer(images, masks, image_size, aug_flag=False)                    
                     # GT : Ground Truth
                     images = images.to(self.device)
                     net_output = torch.sigmoid(self.unet(images))
@@ -420,6 +421,7 @@ class Train(object):
                 tmp = []
                 tbar = tqdm.tqdm(self.valid_loader)
                 for iter_index, (images, masks) in enumerate(tbar):
+                    images, masks = self.scale_transfer(images, masks, image_size, aug_flag=False)
                     # GT : Ground Truth
                     images = images.to(self.device)
                     net_output = torch.sigmoid(self.unet(images))

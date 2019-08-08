@@ -86,6 +86,7 @@ def main(config):
         elif config.mode == 'choose_threshold':
             # 每一折在三个尺度上计算分数、阈值
             for scale_index, image_size in enumerate(config.multi_scales):
+                print('Fold: {}, Image Size: {}'.format(index, image_size))
                 scores.append(list())
                 best_thrs.append(list())
                 best_pixel_thrs.append(list())
@@ -173,7 +174,7 @@ if __name__ == '__main__':
         parser.add_argument('--lr', type=float, default=2e-4, help='init lr in stage1')
         parser.add_argument('--lr_stage2', type=float, default=5e-6, help='init lr in stage2')
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
-        parser.add_argument('--multi_scales', type=list, default=[512, 768, 1024], help='images size of mutil scales')
+        parser.add_argument('--multi_scales', type=list, default=[1024, 768, 512], help='images size of mutil scales')
         # chose threshold barch_size
         parser.add_argument('--multi_batchsize', type=int, default=[20, 20, 10], help='batch size of chosethreshold')
         
