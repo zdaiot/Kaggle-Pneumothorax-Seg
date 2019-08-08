@@ -15,7 +15,7 @@ import csv
 import matplotlib.pyplot as plt
 import tqdm
 from backboned_unet import Unet
-from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss
+from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss, SoftBceLoss
 from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 
@@ -225,6 +225,13 @@ class Train(object):
             lr_scheduler.step()
 
     def train_stage2(self, index):
+        # 冻结BN层， see https://zhuanlan.zhihu.com/p/65439075 and https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/100736591271 for more information
+        def set_bn_eval(m):
+            classname = m.__class__.__name__
+            if classname.find('BatchNorm') != -1:
+                m.eval()
+        self.unet.apply(set_bn_eval)
+
         # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-5}, {'params': self.unet.encoder.parameters(), 'lr': 1e-7},])
         self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay)
 
@@ -354,7 +361,7 @@ class Train(object):
                 dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
                 dice_sum += dice.item()
 
-                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
+                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss.item(), dice.item())
                 tbar.set_description(desc=descript)
         
         loss_mean, dice_mean = loss_sum/len(tbar), dice_sum/len(tbar)

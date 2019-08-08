@@ -366,7 +366,7 @@ class Train(object):
                 dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
                 dice_sum += dice.item()
 
-                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss_sum/(i + 1), dice_sum/(i + 1))
+                descript = "Val Loss: {:.7f}, dice: {:.7f}".format(loss.item(), dice.item())
                 tbar.set_description(desc=descript)
         
         loss_mean, dice_mean = loss_sum/len(tbar), dice_sum/len(tbar)

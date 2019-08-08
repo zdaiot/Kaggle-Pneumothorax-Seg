@@ -127,6 +127,30 @@ class SoftDiceLoss(nn.Module):
         loss = dice
         return loss
 
+# reference https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/101429#latest-588288
+class SoftBceLoss(nn.Module):
+    """二分类交叉熵加权损失
+    """
+    def __init__(self, weight=[0.25, 0.75]):
+        super(SoftBceLoss, self).__init__()
+        self.weight = weight
+
+    def forward(self, logit_pixel, truth_pixel):
+        logit = logit_pixel.view(-1)
+        truth = truth_pixel.view(-1)
+        assert(logit.shape==truth.shape)
+
+        loss = F.binary_cross_entropy_with_logits(logit, truth, reduction='none')
+        if self.weight:
+            pos = (truth>0.5).float()
+            neg = (truth<0.5).float()
+            # pos_weight = pos.sum().item() + 1e-12
+            # neg_weight = neg.sum().item() + 1e-12
+            # loss = (self.weight[0]*pos*loss/pos_weight + self.weight[1]*neg*loss/neg_weight).sum()
+            loss = (self.weight[1]*pos*loss + self.weight[0]*neg*loss).mean()
+        else:
+            loss = loss.mean()
+        return loss
 
 class SoftBCEDiceLoss(nn.Module):
     """加权BCE+DiceLoss
@@ -139,6 +163,7 @@ class SoftBCEDiceLoss(nn.Module):
         self.size_average = size_average
         self.weight = weight
         self.bce_loss = nn.BCEWithLogitsLoss(size_average=self.size_average, pos_weight=torch.tensor(self.weight[1]))
+        # self.bce_loss = SoftBceLoss(weight=weight)
         self.softdiceloss = SoftDiceLoss(size_average=self.size_average, weight=weight)
     
     def forward(self, input, target):
