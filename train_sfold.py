@@ -153,7 +153,7 @@ if __name__ == '__main__':
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=4, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
@@ -163,10 +163,10 @@ if __name__ == '__main__':
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set
-        parser.add_argument('--resume', type=str, default='unet_se_resnext50_32x4d_1_0_best.pth', help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train_stage2', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
+        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_se_resnext50_32x4d', \
-            help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d')
+            help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')
 
         # model hyper-parameters
         parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
@@ -174,9 +174,9 @@ if __name__ == '__main__':
         parser.add_argument('--output_ch', type=int, default=1)
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
-        parser.add_argument('--lr', type=float, default=2e-4, help='init lr in stage1')
+        parser.add_argument('--lr', type=float, default=1e-4, help='init lr in stage1')
         parser.add_argument('--lr_stage2', type=float, default=5e-6, help='init lr in stage2')
-        parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
+        parser.add_argument('--weight_decay', type=float, default=5e-4, help='weight_decay in optimizer')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')
