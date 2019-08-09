@@ -50,7 +50,14 @@ I think this error means that you have two tensorboards installed so the plugin 
 - [x] leak, TTA
 - [x] datasets_statics and choose less than sum
 - [x] adapt to torchvison0.2.0, tensorboard
-- [ ] different Learning rates between encoder and decoder in stage2
+- [x] different Learning rates between encoder and decoder in stage2 (not well)
+- [ ] using lovasz loss in stage2 (this loss can be used to finetune model)
+- [ ] replace upsample (interplotation) with transpose convolution
+- [ ] using octave convolution in unet's decoder
+- [ ] resnet34->resnet50 (a wider model can work better with bigger resolution)
+- [ ] move noise form augmentation
+- [ ] Unet with Attention
+- [ ] the dice coefficient is unstale in val set
 
 ## Dataset
 Creat dataset soft links in the following directories.

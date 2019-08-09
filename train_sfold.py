@@ -144,12 +144,12 @@ if __name__ == '__main__':
         若选第二阶段的阈值，则mode设置为choose_threshold，two_stage设置为True
 
         第一阶段为768，第二阶段为1024，unet_resnet34时各个电脑可以设置的最大batch size
-        zdaiot:10,6 z840:12,6 mxq:20,8
+        zdaiot:10,6 z840:12,6 mxq:20, 10
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
         parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=50, help='How many epoch in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
