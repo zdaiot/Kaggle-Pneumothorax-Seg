@@ -22,6 +22,8 @@ from torchvision import transforms
 import cv2
 from albumentations import CLAHE
 import json
+from models.Transpose_unet.unet.model import Unet as Unet_t
+from models.octave_unet.unet.model import OctaveUnet
 
 
 class Test(object):
@@ -40,23 +42,30 @@ class Test(object):
         """Build generator and discriminator."""
         if self.model_type == 'U_Net':
             self.unet = U_Net(img_ch=3, output_ch=1)
-        elif self.model_type == 'R2U_Net':
-            self.unet = R2U_Net(img_ch=3, output_ch=1, t=self.t)
         elif self.model_type == 'AttU_Net':
             self.unet = AttU_Net(img_ch=3, output_ch=1)
-        elif self.model_type == 'R2AttU_Net':
-            self.unet = R2AttU_Net(img_ch=3, output_ch=1, t=self.t)
+
         elif self.model_type == 'unet_resnet34':
             # self.unet = Unet(backbone_name='resnet34', classes=1)
             self.unet = smp.Unet('resnet34', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_resnet50':
+            self.unet = smp.Unet('resnet50', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_se_resnext50_32x4d':
+            self.unet = smp.Unet('se_resnext50_32x4d', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_densenet121':
+            self.unet = smp.Unet('densenet121', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_resnet34_t':
+            self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
+        elif self.model_type == 'unet_resnet34_oct':
+            self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
+
+        elif self.model_type == 'pspnet_resnet34':
+            self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=1)
         elif self.model_type == 'deeplabv3plus':
             self.unet = DeepLabV3Plus(num_classes=1)
-        elif self.model_type == 'pspnet_resnet34':
-            self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
-        elif self.model_type == 'unet_se_resnext50_32x4d':
-            self.unet = smp.Unet('se_resnext50_32x4d', encoder_weights='imagenet', activation=None)
+
         print('build model done！')
 
         self.unet.to(self.device)
@@ -196,7 +205,7 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'unet_se_resnext50_32x4d'
+    model_name = 'unet_densenet121'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, n_splits = 1, 5
     if stage == 1:
@@ -204,4 +213,4 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.85, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=1536, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.6, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=1820, csv_path=csv_path, test_image_path=test_image_path)

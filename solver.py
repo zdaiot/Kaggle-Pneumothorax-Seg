@@ -15,10 +15,11 @@ import csv
 import matplotlib.pyplot as plt
 import tqdm
 from backboned_unet import Unet
-from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss, SoftBceLoss
+from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss, SoftBceLoss, LovaszLoss
 from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
-
+from models.Transpose_unet.unet.model import Unet as Unet_t
+from models.octave_unet.unet.model import OctaveUnet
 
 class Train(object):
     def __init__(self, config, train_loader, valid_loader):
@@ -33,6 +34,7 @@ class Train(object):
         self.output_ch = config.output_ch
         self.criterion = GetLoss([SoftBCEDiceLoss(weight=[0.25, 0.75])])
         # self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.criterion_stage2 = GetLoss([LovaszLoss()])
         self.model_type = config.model_type
         self.t = config.t
 
@@ -74,23 +76,32 @@ class Train(object):
             self.unet = AttU_Net(img_ch=3, output_ch=self.output_ch)
         elif self.model_type == 'R2AttU_Net':
             self.unet = R2AttU_Net(img_ch=3, output_ch=self.output_ch, t=self.t)
+
         elif self.model_type == 'unet_resnet34':
             # self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
             self.unet = smp.Unet('resnet34', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_resnet50':
+            self.unet = smp.Unet('resnet50', encoder_weights='imagenet', activation=None)
         elif self.model_type == 'unet_se_resnext50_32x4d':
             self.unet = smp.Unet('se_resnext50_32x4d', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_densenet121':
+            self.unet = smp.Unet('densenet121', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_resnet34_t':
+            self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
+        elif self.model_type == 'unet_resnet34_oct':
+            self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
+        
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
         elif self.model_type == 'deeplabv3plus':
             self.unet = DeepLabV3Plus(num_classes=self.output_ch)
         elif self.model_type == 'pspnet_resnet34':
             self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
-        elif self.model_type == 'unet_densenet121':
-            self.unet = smp.Unet('densenet121', encoder_weights='imagenet', activation=None)
 
         if torch.cuda.is_available():
             self.unet = torch.nn.DataParallel(self.unet)
             self.criterion = self.criterion.cuda()
+            self.criterion_stage2 = self.criterion_stage2.cuda()
         self.unet.to(self.device)
 
     def print_network(self, model, name):
@@ -181,7 +192,17 @@ class Train(object):
                 net_output = self.unet(images)
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
-                loss = self.criterion(net_output_flat, masks_flat)
+                loss_set = self.criterion(net_output_flat, masks_flat)
+                
+                # 依据返回的损失个数分情况处理
+                if len(loss_set) > 1:
+                    for loss_index, loss_item in enumerate(loss_set):
+                        if loss_index > 0:
+                            loss_name = 'loss_%d' % loss_index
+                            self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
+                    loss = loss_set[0]
+                else:
+                    loss = loss_set
                 epoch_loss += loss.item()
 
                 # Backprop + optimize
@@ -206,7 +227,7 @@ class Train(object):
             write_txt(self.save_path, 'Finish Stage1 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage1, epoch_loss/len(tbar)))
 
             # 验证模型，保存权重，并保存日志
-            loss_mean, dice_mean = self.validation()
+            loss_mean, dice_mean = self.validation(stage=1)
             if dice_mean > self.max_dice: 
                 is_best = True
                 self.max_dice = dice_mean
@@ -229,19 +250,19 @@ class Train(object):
             lr_scheduler.step()
 
     def train_stage2(self, index):
-        # 冻结BN层， see https://zhuanlan.zhihu.com/p/65439075 and https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/100736591271 for more information
-        def set_bn_eval(m):
-            classname = m.__class__.__name__
-            if classname.find('BatchNorm') != -1:
-                m.eval()
-        self.unet.apply(set_bn_eval)
+        # # 冻结BN层， see https://zhuanlan.zhihu.com/p/65439075 and https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/100736591271 for more information
+        # def set_bn_eval(m):
+        #     classname = m.__class__.__name__
+        #     if classname.find('BatchNorm') != -1:
+        #         m.eval()
+        # self.unet.apply(set_bn_eval)
 
         # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-5}, {'params': self.unet.encoder.parameters(), 'lr': 1e-7},])
         self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay)
 
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
-            # 若第二个阶段训练一半，要重新加载
+            # 若第二个阶段训练一半，要重新加载 TODO
             if self.resume.split('_')[2] == '2':
                 self.load_checkpoint(load_optimizer=True) # 当load_optimizer为True会重新加载学习率和优化器
                 '''
@@ -287,7 +308,17 @@ class Train(object):
                 net_output = self.unet(images)
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
-                loss = self.criterion(net_output_flat, masks_flat)
+                loss_set = self.criterion_stage2(net_output_flat, masks_flat)
+
+                # 依据返回的损失个数分情况处理
+                if len(loss_set) > 1:
+                    for loss_index, loss_item in enumerate(loss_set):
+                        if loss_index > 0:
+                            loss_name = 'loss_%d' % loss_index
+                            self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
+                    loss = loss_set[0]
+                else:
+                    loss = loss_set
                 epoch_loss += loss.item()
 
                 # Backprop + optimize, see https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20 for Accumulating Gradients
@@ -319,7 +350,7 @@ class Train(object):
             write_txt(self.save_path, 'Finish Stage2 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage2, epoch_loss/len(tbar)))
 
             # 验证模型，保存权重，并保存日志
-            loss_mean, dice_mean = self.validation()
+            loss_mean, dice_mean = self.validation(stage=2)
             if dice_mean > self.max_dice: 
                 is_best = True
                 self.max_dice = dice_mean
@@ -342,12 +373,16 @@ class Train(object):
             lr_scheduler.step()
             
 
-    def validation(self):
+    def validation(self, stage=1):
         # 验证的时候，train(False)是必须的0，设置其中的BN层、dropout等为eval模式
         # with torch.no_grad(): 可以有，在这个上下文管理器中，不反向传播，会加快速度，可以使用较大batch size
         self.unet.eval()
         tbar = tqdm.tqdm(self.valid_loader)
         loss_sum, dice_sum = 0, 0
+        if stage == 1:
+            criterion = self.criterion
+        elif stage == 2:
+            criterion = self.criterion_stage2
         with torch.no_grad(): 
             for i, (images, masks) in enumerate(tbar):
                 images = images.to(self.device)
@@ -357,7 +392,7 @@ class Train(object):
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
                 
-                loss = self.criterion(net_output_flat, masks_flat)
+                loss = criterion(net_output_flat, masks_flat)
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5

@@ -13,6 +13,8 @@ from models.network import U_Net
 from models.linknet import LinkNet34
 from albumentations import CLAHE
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
+from models.Transpose_unet.unet.model import Unet as Unet_t
+from models.octave_unet.unet.model import OctaveUnet
 
 
 def detect(model, mean, std, image_path, input_size=224, threshold=0.6, cuda=True):
@@ -72,6 +74,12 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
         model = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
     elif model_name == 'unet_se_resnext50_32x4d':
         model = smp.Unet('se_resnext50_32x4d', encoder_weights='imagenet', activation=None)
+    elif model_name == 'unet_resnet50':
+        model = smp.Unet('resnet50', encoder_weights='imagenet', activation=None)
+    elif model_name == 'unet_resnet34_t':
+        model = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
+    elif model_name == 'unet_resnet34_oct':
+        model = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
     else:
         raise ValueError('The model should be one of [Unet/unet_resnet34/]')
     
