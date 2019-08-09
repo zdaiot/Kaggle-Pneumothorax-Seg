@@ -55,6 +55,8 @@ class Test(object):
             self.unet = DeepLabV3Plus(num_classes=1)
         elif self.model_type == 'pspnet_resnet34':
             self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
+        elif self.model_type == 'unet_se_resnext50_32x4d':
+            self.unet = smp.Unet('se_resnext50_32x4d', encoder_weights='imagenet', activation=None)
         print('build model done！')
 
         self.unet.to(self.device)
@@ -194,12 +196,12 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'unet_resnet34'
+    model_name = 'unet_se_resnext50_32x4d'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
-    stage, n_splits = 2, 5
+    stage, n_splits = 1, 5
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.67, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=2048, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=0.85, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=1536, csv_path=csv_path, test_image_path=test_image_path)

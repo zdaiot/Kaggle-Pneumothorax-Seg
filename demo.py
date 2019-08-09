@@ -70,8 +70,10 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
         model = DeepLabV3Plus(num_classes=1)
     elif model_name == 'pspnet_resnet34':
         model = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
+    elif model_name == 'unet_se_resnext50_32x4d':
+        model = smp.Unet('se_resnext50_32x4d', encoder_weights='imagenet', activation=None)
     else:
-        raise ValueError('The model should be one of [Unet/unet_resnet34]')
+        raise ValueError('The model should be one of [Unet/unet_resnet34/]')
     
     if cuda:
         model.cuda()
@@ -85,17 +87,17 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
         image_path = os.path.join(images_path, image)
         image_raw, pred_mask = detect(model, mean, std, image_path, input_size, threshold, cuda)
 
-        mask_path = os.path.join(masks_path, image.replace('jpg', 'jpg'))
+        mask_path = os.path.join(masks_path, image.replace('jpg', 'png'))
         mask = Image.open(mask_path).resize((input_size, input_size))
 
         combine_display(image_raw, mask, pred_mask, 'Result Show')
 
 
 if __name__ == "__main__":
-    base_dir = 'img'
-    images_folder = os.path.join(base_dir, 'image')
-    masks_folder = os.path.join(base_dir, 'mask')
-    model_name = 'unet_resnet34'
+    base_dir = 'datasets/SIIM_data'
+    images_folder = os.path.join(base_dir, 'train_images')
+    masks_folder = os.path.join(base_dir, 'train_mask')
+    model_name = 'unet_se_resnext50_32x4d'
 
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
@@ -103,10 +105,10 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
 
     # stage表示测试第几阶段的代码，对应不同的image_size，fold表示为交叉验证的第几个
-    stage, fold = 1, 4
+    stage, fold = 1, 0
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}_best.pth'.format(stage, fold))
-    demo(model_name, mean, std, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.5)
+    demo(model_name, mean, std, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.65)

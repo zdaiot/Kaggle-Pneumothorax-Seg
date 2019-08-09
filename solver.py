@@ -77,6 +77,8 @@ class Train(object):
         elif self.model_type == 'unet_resnet34':
             # self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
             self.unet = smp.Unet('resnet34', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'unet_se_resnext50_32x4d':
+            self.unet = smp.Unet('se_resnext50_32x4d', encoder_weights='imagenet', activation=None)
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
         elif self.model_type == 'deeplabv3plus':
@@ -154,7 +156,7 @@ class Train(object):
         - resume学习率没有接上，所以resume暂时无法使用
         '''
         stage1_epoches = self.epoch_stage1 - self.start_epoch
-        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches+10)
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches+5)
         # 防止训练到一半暂停重新训练，日志被覆盖
         global_step_before = self.start_epoch*len(self.train_loader)
 

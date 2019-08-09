@@ -22,11 +22,6 @@ else:
 
 def main(config):
     cudnn.benchmark = True
-    if config.model_type not in ['U_Net', 'R2U_Net', 'AttU_Net', 'R2AttU_Net', 'unet_resnet34', 'linknet', 'deeplabv3plus', 'pspnet_resnet34']:
-        print('ERROR!! model_type should be selected in U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34')
-        print('Your input for model_type was %s' % config.model_type)
-        return
-
     # 配置随机权重衰减，保存路径等
     decay_ratio = random.random() * 0.8
     decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
@@ -153,24 +148,25 @@ if __name__ == '__main__':
         '''
         parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
-        parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=8, help='batch size in the first stage')
+        parser.add_argument('--epoch_stage1', type=int, default=50, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=10, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
         parser.add_argument('--stage1_augmentation_flag', type=bool, default=True, help='if true, use augmentation method in stage1 train set')
-        parser.add_argument('--stage2_augmentation_flag', type=bool, default=False, help='if true, use augmentation method in stage2 train set')
+        parser.add_argument('--stage2_augmentation_flag', type=bool, default=True, help='if true, use augmentation method in stage2 train set')
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set
-        parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
-        parser.add_argument('--model_type', type=str, default='unet_resnet34', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34')
+        parser.add_argument('--resume', type=str, default='unet_se_resnext50_32x4d_1_0_best.pth', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--mode', type=str, default='train_stage2', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        parser.add_argument('--model_type', type=str, default='unet_se_resnext50_32x4d', \
+            help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d')
 
         # model hyper-parameters
         parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
@@ -187,7 +183,7 @@ if __name__ == '__main__':
         parser.add_argument('--dataset_root', type=str, default='./datasets/SIIM_data')
         parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
         parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask')
-        parser.add_argument('--weight_sample', type=list, default=[1, 1.5], help='sample weight of class')
+        parser.add_argument('--weight_sample', type=list, default=0, help='sample weight of class')
 
         config = parser.parse_args()
         # config = {k: v for k, v in args._get_kwargs()}
