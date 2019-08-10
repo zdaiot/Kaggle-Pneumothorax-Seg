@@ -392,16 +392,16 @@ class Train(object):
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
                 
-                loss_set = criterion(net_output_flat, masks_flat)
+                loss = criterion(net_output_flat, masks_flat)
                 # 依据返回的损失个数分情况处理
-                if len(loss_set) > 1:
-                    # for loss_index, loss_item in enumerate(loss_set):
-                    #     if loss_index > 0:
-                    #         loss_name = 'loss_%d' % loss_index
-                    #         self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
-                    loss = loss_set[0]
-                else:
-                    loss = loss_set
+                # if len(loss_set) > 1:
+                #     # for loss_index, loss_item in enumerate(loss_set):
+                #     #     if loss_index > 0:
+                #     #         loss_name = 'loss_%d' % loss_index
+                #     #         self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
+                #     loss = loss_set[0]
+                # else:
+                #     loss = loss_set
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
