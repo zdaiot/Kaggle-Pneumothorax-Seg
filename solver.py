@@ -402,7 +402,6 @@ class Train(object):
                     loss = loss_set[0]
                 else:
                     loss = loss_set
-                epoch_loss += loss.item()
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
