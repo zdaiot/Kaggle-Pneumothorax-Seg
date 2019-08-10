@@ -194,8 +194,12 @@ class Train(object):
                 masks_flat = masks.view(masks.size(0), -1)
                 loss_set = self.criterion(net_output_flat, masks_flat)
                 
+                try:
+                    loss_num = len(loss_set)
+                except:
+                    loss_num = 1
                 # 依据返回的损失个数分情况处理
-                if len(loss_set) > 1:
+                if loss_num > 1:
                     for loss_index, loss_item in enumerate(loss_set):
                         if loss_index > 0:
                             loss_name = 'loss_%d' % loss_index
@@ -308,17 +312,21 @@ class Train(object):
                 net_output = self.unet(images)
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
-                loss = self.criterion_stage2(net_output_flat, masks_flat)
+                loss_set = self.criterion_stage2(net_output_flat, masks_flat)
 
-                # # 依据返回的损失个数分情况处理
-                # if len(loss_set) > 1:
-                #     for loss_index, loss_item in enumerate(loss_set):
-                #         if loss_index > 0:
-                #             loss_name = 'loss_%d' % loss_index
-                #             self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
-                #     loss = loss_set[0]
-                # else:
-                #     loss = loss_set
+                try:
+                    loss_num = len(loss_set)
+                except:
+                    loss_num = 1
+                # 依据返回的损失个数分情况处理
+                if loss_num > 1:
+                    for loss_index, loss_item in enumerate(loss_set):
+                        if loss_index > 0:
+                            loss_name = 'loss_%d' % loss_index
+                            self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
+                    loss = loss_set[0]
+                else:
+                    loss = loss_set
                 epoch_loss += loss.item()
 
                 # Backprop + optimize, see https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20 for Accumulating Gradients
@@ -392,16 +400,17 @@ class Train(object):
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
                 
-                loss = criterion(net_output_flat, masks_flat)
+                loss_set = criterion(net_output_flat, masks_flat)
+                try:
+                    loss_num = len(loss_set)
+                except:
+                    loss_num = 1
+                
                 # 依据返回的损失个数分情况处理
-                # if len(loss_set) > 1:
-                #     # for loss_index, loss_item in enumerate(loss_set):
-                #     #     if loss_index > 0:
-                #     #         loss_name = 'loss_%d' % loss_index
-                #     #         self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
-                #     loss = loss_set[0]
-                # else:
-                #     loss = loss_set
+                if loss_num > 1:
+                    loss = loss_set[0]
+                else:
+                    loss = loss_set
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
