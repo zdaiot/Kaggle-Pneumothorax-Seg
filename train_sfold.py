@@ -174,6 +174,7 @@ if __name__ == '__main__':
         parser.add_argument('--lr_stage2', type=float, default=0.00001, help='init lr in stage2')
         parser.add_argument('--encoder_lr_stage2', type=float, default=0.000005, help='init encoder lr in stage2')
         parser.add_argument('--weight_decay', type=float, default=0.0, help='weight_decay in optimizer')
+        parser.add_argument('--loss_weight', type=list, default=[1.5, 1], help='weight_decay in optimizer')        
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')

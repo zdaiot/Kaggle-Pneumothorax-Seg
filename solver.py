@@ -35,6 +35,7 @@ class Train(object):
         self.criterion_classify = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([0.75]))
         self.criterion = GetLoss([SoftBCEDiceLoss(weight=[0.25, 0.75])])
         self.model_type = config.model_type
+        self.loss_weight = config.loss_weight
         self.t = config.t
 
         self.mode = config.mode
@@ -165,7 +166,7 @@ class Train(object):
 
                 classify_loss = self.criterion_classify(net_output_classes_flat, masks_classes_flat)
                 seg_loss = self.criterion(net_output_flat, masks_flat)
-                loss = classify_loss + seg_loss
+                loss = self.loss_weight[0] * classify_loss + self.loss_weight[1] * seg_loss
 
                 epoch_loss += loss.item()
 
@@ -277,7 +278,7 @@ class Train(object):
 
                 classify_loss = self.criterion_classify(net_output_classes_flat, masks_classes_flat)
                 seg_loss = self.criterion(net_output_flat, masks_flat)
-                loss = classify_loss + seg_loss
+                loss = self.loss_weight[0] * classify_loss + self.loss_weight[1] * seg_loss
 
                 epoch_loss += loss.item()
 
@@ -359,7 +360,7 @@ class Train(object):
                 
                 classify_loss = self.criterion_classify(net_output_classes_flat, masks_classes_flat)
                 seg_loss = self.criterion(net_output_flat, masks_flat)
-                loss = classify_loss + seg_loss
+                loss = self.loss_weight[0] * classify_loss + self.loss_weight[1] * seg_loss
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
