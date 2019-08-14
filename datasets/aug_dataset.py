@@ -13,14 +13,18 @@ from albumentations import (
     RandomBrightness, RandomContrast, RandomGamma,OneOf,
     ToFloat, ShiftScaleRotate,GridDistortion, ElasticTransform, JpegCompression, HueSaturationValue,
     RGBShift, RandomBrightnessContrast, RandomContrast, Blur, MotionBlur, MedianBlur, GaussNoise,CenterCrop,
-    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate
+    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate, OpticalDistortion, 
 )
 
-AUG = [HorizontalFlip(p=1.0), Rotate(limit=15, p=1.0)]
+AUG = [HorizontalFlip(p=1.0), 
+        Rotate(limit=20, p=1.0), 
+        OpticalDistortion(p=1.0, distort_limit=2, shift_limit=0.5),
+        ElasticTransform(p=1, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03)，
+    ]
 
 
 def sample_aug(image, mask, aug):
-    """对单个图片和掩膜应用aug
+    """对单个图片和掩膜应用单个aug
     """
     augmented = aug(image=image, mask=mask)
     image_aug, mask_aug = augmented['image'], augmented['mask']
@@ -29,6 +33,8 @@ def sample_aug(image, mask, aug):
 
 
 def aug_save(image_name, mask_name, original_path, save_path, augs=AUG):
+    """对单个图片和掩膜应用多个增强方法
+    """
     image_path = os.path.join(original_path, 'train_images', image_name)
     mask_path = os.path.join(original_path, 'train_mask', mask_name)
     image = Image.open(image_path).convert("RGB")
@@ -48,6 +54,7 @@ def aug_save(image_name, mask_name, original_path, save_path, augs=AUG):
         image_aug = Image.fromarray(image_aug)
         mask_aug = Image.fromarray(mask_aug)
 
+        # 为增强后的样本赋予新的名称
         image_aug_name = os.path.join(save_path, 'train_images', \
                                         image_name.replace('.jpg', '_' + str(aug_index) + '.jpg'))
         mask_aug_name = os.path.join(save_path, 'train_mask', \
@@ -58,7 +65,15 @@ def aug_save(image_name, mask_name, original_path, save_path, augs=AUG):
 
     pass
 
+
 def dataset_aug(dataset_root, save_root, augs=AUG):
+    """对原始路径下的样本进行增强，并将结果保存至目标目录下
+
+    Args:
+        dataset_root: 原始数据集的根目录
+        save_root: 目标目录的根目录
+        augs: 将采用的增强方法
+    """
     images_path = os.path.join(dataset_root, 'train_images')
     masks_path = os.path.join(dataset_root, 'train_mask')
 
@@ -70,6 +85,7 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
         aug_save(image_name, mask_name, dataset_root, save_root, augs=AUG)
     
     pass
+
 
 if __name__ == "__main__":
     # 创建所需文件夹，也可以直接使用os.makedirs()创建多级目录
