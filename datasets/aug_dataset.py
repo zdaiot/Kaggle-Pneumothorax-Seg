@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 import threading
 from multiprocessing import Pool
+from functools import partial
 
 from albumentations import (
     Compose, HorizontalFlip, VerticalFlip, CLAHE, RandomRotate90, HueSaturationValue,
@@ -67,7 +68,7 @@ def aug_save(image_name, original_path, save_path, augs=AUG):
         image_aug.save(image_aug_name)
         mask_aug.save(mask_aug_name)
 
-    pass
+    return image_name
 
 
 def dataset_aug(dataset_root, save_root, augs=AUG):
@@ -79,13 +80,14 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
         augs: 将采用的增强方法
     """
     images_path = os.path.join(dataset_root, 'train_images')
-
     images_name = os.listdir(images_path)
-    tbar = tqdm.tqdm(images_name)
 
     partial_aug = partial(aug_save, original_path=dataset_root, save_path=save_root, augs=augs)
-    pool = Pool()
-    pool.map(partial_aug, images_name)
+    pool = Pool(20)
+    tbar = tqdm.tqdm(pool.imap(partial_aug, images_name))
+    for image_name in tbar:
+        tbar.set_description(image_name)
+
     pool.close()
     pool.join()
     
