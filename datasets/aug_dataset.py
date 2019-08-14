@@ -8,6 +8,7 @@ import shutil
 from matplotlib import pyplot as plt
 from PIL import Image
 import threading
+from multiprocessing import Pool
 
 from albumentations import (
     Compose, HorizontalFlip, VerticalFlip, CLAHE, RandomRotate90, HueSaturationValue,
@@ -93,7 +94,7 @@ class DataAugThread (threading.Thread):
     def __init__(self, threadID, dataset_root, save_root, threadLock):
         threading.Thread.__init__(self)
         self.threadID = threadID
-        self.dataset_root = dataset_aug
+        self.dataset_root = dataset_root
         self.save_root = save_root
         self.threadLock = threadLock
     
@@ -123,18 +124,9 @@ if __name__ == "__main__":
         print("make: {}".format(train_mask_path))
 
     dataset_root = './SIIM_data'
-    threadlock = threading.Lock()
-    aug_thread1 = DataAugThread(1, dataset_root, save_root, threadlock)
-    aug_thread2 = DataAugThread(2, dataset_root, save_root, threadlock)
-    aug_thread3 = DataAugThread(3, dataset_root, save_root, threadlock)
-
-    aug_thread1.start()
-    aug_thread2.start()
-    aug_thread3.start()
-
-    aug_thread1.join()
-    aug_thread2.join()
-    aug_thread3.join()
-
-    dataset_aug(dataset_root, save_root)
+    pool = Pool(10)
+    result = pool.map(dataset_aug, (dataset_root, save_root, AUG))
+    pool.close()#关闭进程池，不再接受新的进程
+    pool.join()#主进程阻塞等待子进程的退出
+    
     
