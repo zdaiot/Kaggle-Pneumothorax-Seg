@@ -51,9 +51,11 @@ def data_augmentation(original_image, original_mask):
     """
     original_height, original_width = original_image.shape[:2]
     augmentations = Compose([
-        HorizontalFlip(p=0.4),
-        Rotate(limit=15, p=0.4),   
-        CenterCrop(p=0.3, height=original_height, width=original_width),
+        OneOf([
+                HorizontalFlip(p=0.4),
+                Rotate(limit=15, p=0.5),   
+            ], p=0.75),
+        
         # 直方图均衡化
         CLAHE(p=0.4),
 
