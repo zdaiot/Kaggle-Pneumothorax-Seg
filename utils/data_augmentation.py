@@ -50,11 +50,11 @@ def data_augmentation(original_image, original_mask):
         mask_aug: 增强后的掩膜
     """
     original_height, original_width = original_image.shape[:2]
-    augmentations = Compose(
+    augmentations = Compose([
         OneOf([
                 HorizontalFlip(p=0.4),
                 Rotate(limit=15, p=0.5),   
-            ], p=0.75)
+            ], p=0.75),
         
         # 直方图均衡化
         CLAHE(p=0.4),
