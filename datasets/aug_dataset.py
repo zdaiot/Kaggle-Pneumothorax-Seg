@@ -35,9 +35,10 @@ def sample_aug(image, mask, aug):
     return image_aug, mask_aug
 
 
-def aug_save(image_name, mask_name, original_path, save_path, augs=AUG):
+def aug_save(image_name, original_path, save_path, augs=AUG):
     """对单个图片和掩膜应用多个增强方法
     """
+    mask_name = image_name.replace('jpg', 'png')
     image_path = os.path.join(original_path, 'train_images', image_name)
     mask_path = os.path.join(original_path, 'train_mask', mask_name)
     image = Image.open(image_path).convert("RGB")
@@ -78,14 +79,15 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
         augs: 将采用的增强方法
     """
     images_path = os.path.join(dataset_root, 'train_images')
-    masks_path = os.path.join(dataset_root, 'train_mask')
 
     images_name = os.listdir(images_path)
     tbar = tqdm.tqdm(images_name)
 
-    for index, image_name in enumerate(tbar):
-        mask_name = image_name.replace('.jpg', '.png')
-        aug_save(image_name, mask_name, dataset_root, save_root, augs=AUG)
+    partial_aug = partial(aug_save, original_path=dataset_root, save_path=save_root, augs=augs)
+    pool = Pool()
+    pool.map(partial_aug, images_name)
+    pool.close()
+    pool.join()
     
     pass
 
@@ -124,9 +126,6 @@ if __name__ == "__main__":
         print("make: {}".format(train_mask_path))
 
     dataset_root = './SIIM_data'
-    pool = Pool(10)
-    result = pool.map(dataset_aug, (dataset_root, save_root, AUG))
-    pool.close()#关闭进程池，不再接受新的进程
-    pool.join()#主进程阻塞等待子进程的退出
-    
+    dataset_aug(dataset_root, save_root, augs=AUG)
+
     
