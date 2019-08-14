@@ -34,7 +34,7 @@ class Train(object):
         self.output_ch = config.output_ch
         self.criterion = SoftBCEDiceLoss(weight=[0.25, 0.75])
         # self.criterion = torch.nn.BCEWithLogitsLoss()
-        self.criterion_stage2 = LovaszLoss()
+        self.criterion_stage2 = SoftBCEDiceLoss(weight=[0.25, 0.75])
         self.model_type = config.model_type
         self.t = config.t
 

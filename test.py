@@ -205,12 +205,16 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'unet_resnet34'
+    model_name = 'unet_resnet50'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, n_splits = 2, 5
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
+    threshold = 0.67
+    less_than_sum = 1536
+    test_best_mode = True
+    print("stage: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage, n_splits, threshold, less_than_sum))
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=0.61, stage=stage, n_splits=n_splits, test_best_model=True, less_than_sum=512, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=threshold, stage=stage, n_splits=n_splits, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)
