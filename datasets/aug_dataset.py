@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 import cv2
 import random
 import glob
@@ -84,9 +85,9 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
 
     partial_aug = partial(aug_save, original_path=dataset_root, save_path=save_root, augs=augs)
     pool = Pool(20)
-    tbar = tqdm.tqdm(pool.imap(partial_aug, images_name))
-    for image_name in tbar:
-        tbar.set_description(image_name)
+    
+    for index, image_name in enumerate(pool.imap(partial_aug, images_name)):
+        sys.stdout.write('done %d/%d\r' % (index + 1, len(images_name)))
 
     pool.close()
     pool.join()
