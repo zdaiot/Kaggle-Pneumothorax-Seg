@@ -7,6 +7,7 @@ import tqdm
 import shutil
 from matplotlib import pyplot as plt
 from PIL import Image
+import threading
 
 from albumentations import (
     Compose, HorizontalFlip, VerticalFlip, CLAHE, RandomRotate90, HueSaturationValue,
@@ -88,6 +89,22 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
     pass
 
 
+class DataAugThread (threading.Thread):
+    def __init__(self, threadID, dataset_root, save_root, threadLock):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.dataset_root = dataset_aug
+        self.save_root = save_root
+        self.threadLock = threadLock
+    
+    def run(self):
+        # 获取锁，用于线程同步
+        self.threadLock.acquire()
+        dataset_aug(self.dataset_root, self.save_root)
+        # 释放锁，开启下一个线程
+        self.threadLock.release()
+
+
 if __name__ == "__main__":
     # 创建所需文件夹，也可以直接使用os.makedirs()创建多级目录
     save_root = './SIIM_AUG'
@@ -106,5 +123,18 @@ if __name__ == "__main__":
         print("make: {}".format(train_mask_path))
 
     dataset_root = './SIIM_data'
+    threadlock = threading.Lock()
+    aug_thread1 = DataAugThread(1, dataset_root, save_root, threadlock)
+    aug_thread2 = DataAugThread(2, dataset_root, save_root, threadlock)
+    aug_thread3 = DataAugThread(3, dataset_root, save_root, threadlock)
+
+    aug_thread1.start()
+    aug_thread2.start()
+    aug_thread3.start()
+
+    aug_thread1.join()
+    aug_thread2.join()
+    aug_thread3.join()
+
     dataset_aug(dataset_root, save_root)
     
