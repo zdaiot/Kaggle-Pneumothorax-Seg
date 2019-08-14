@@ -16,11 +16,12 @@ from albumentations import (
     IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate, OpticalDistortion, 
 )
 
-AUG = [HorizontalFlip(p=1.0), 
-        Rotate(limit=20, p=1.0), 
-        OpticalDistortion(p=1.0, distort_limit=2, shift_limit=0.5),
-        ElasticTransform(p=1, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03)，
-    ]
+AUG = [
+    HorizontalFlip(p=1.0), 
+    Rotate(limit=15, p=1.0),
+    ElasticTransform(p=1, alpha=300, sigma=300 * 0.05, alpha_affine=300 * 0.03),
+    ElasticTransform(p=1, alpha=500, sigma=500 * 0.05, alpha_affine=500 * 0.03)
+]
 
 
 def sample_aug(image, mask, aug):
