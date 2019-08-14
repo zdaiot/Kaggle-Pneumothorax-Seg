@@ -28,10 +28,10 @@ def sample_aug(image, mask, aug):
     return image_aug, mask_aug
 
 
-def aug_save(image_name, mask_name, augs=AUG, original_path, save_path):
+def aug_save(image_name, mask_name, original_path, save_path, augs=AUG):
     image_path = os.path.join(original_path, 'train_images', image_name)
     mask_path = os.path.join(original_path, 'train_mask', mask_name)
-    image = Image.open(img_path).convert("RGB")
+    image = Image.open(image_path).convert("RGB")
     mask = Image.open(mask_path)
     image = np.asarray(image)
     mask = np.asarray(mask)
@@ -51,7 +51,7 @@ def aug_save(image_name, mask_name, augs=AUG, original_path, save_path):
         image_aug_name = os.path.join(save_path, 'train_images', \
                                         image_name.replace('.jpg', '_' + str(aug_index) + '.jpg'))
         mask_aug_name = os.path.join(save_path, 'train_mask', \
-                                        mask_aug.replace('.png', '_' + str(aug_index) + '.png'))
+                                        mask_name.replace('.png', '_' + str(aug_index) + '.png'))
         
         image_aug.save(image_aug_name)
         mask_aug.save(mask_aug_name)
@@ -67,23 +67,26 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
 
     for index, image_name in enumerate(tbar):
         mask_name = image_name.replace('.jpg', '.png')
-        aug_save(image_name, mask_name, augs=AUG, dataset_root, save_root)
+        aug_save(image_name, mask_name, dataset_root, save_root, augs=AUG)
     
     pass
 
 if __name__ == "__main__":
     # 创建所需文件夹，也可以直接使用os.makedirs()创建多级目录
     save_root = './SIIM_AUG'
-    if not os.path.exists(save_root)
+    if not os.path.exists(save_root):
         os.mkdir(save_root)
+        print("make: {}".format(save_root))
     
     train_images_path = os.path.join(save_root, 'train_images')
     if not os.path.exists(train_images_path):
         os.mkdir(train_images_path)
+        print("make: {}".format(train_images_path))
     
     train_mask_path = os.path.join(save_root, 'train_mask')
     if not os.path.exists(train_mask_path):
         os.mkdir(train_mask_path)
+        print("make: {}".format(train_mask_path))
 
     dataset_root = './SIIM_data'
     dataset_aug(dataset_root, save_root)
