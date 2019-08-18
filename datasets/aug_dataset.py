@@ -17,14 +17,32 @@ from albumentations import (
     RandomBrightness, RandomContrast, RandomGamma,OneOf,
     ToFloat, ShiftScaleRotate,GridDistortion, ElasticTransform, JpegCompression, HueSaturationValue,
     RGBShift, RandomBrightnessContrast, RandomContrast, Blur, MotionBlur, MedianBlur, GaussNoise,CenterCrop,
-    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate, OpticalDistortion, 
+    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate, OpticalDistortion, RandomScale, PadIfNeeded，
 )
 
+'''
 AUG = [
     HorizontalFlip(p=1.0), 
     Rotate(limit=15, p=1.0),
     ElasticTransform(p=1, alpha=500, sigma=500 * 0.05, alpha_affine=500 * 0.03)
 ]
+'''
+
+
+AUG = [
+    # 角度旋转
+    Compose([
+        Rotate(limit=15, p=1.0, border_mode=0, value=0, mask_value=0, always_apply=True),
+        ]),
+    
+    # 多尺度缩放，偏移等
+    Compose([
+        # 随机偏移、尺度变换、角度翻转
+        # RandomScale(scale_limit=0.3, p=1.0),
+        ShiftScaleRotate(shift_limit=0.07, scale_limit=0.1, rotate_limit=15, border_mode=0, value=0, mask_value=0, always_apply=True),
+        PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=0, mask_value=0, always_apply=True),
+        ])
+    ]
 
 
 def sample_aug(image, mask, aug):
@@ -52,23 +70,46 @@ def aug_save(image_name, original_path, save_path, augs=AUG):
     mask_cp_name = os.path.join(save_path, 'train_mask', mask_name)
     shutil.copyfile(image_path, image_cp_name)
     shutil.copyfile(mask_path, mask_cp_name)
+    
+    # 判断是否包含掩膜
+    mask_thresh = mask > 0
+    mask_pixel_num = np.sum(mask_thresh)
+    
+    # 只对包含掩膜的样本进行增强
+    if mask_pixel_num:
+        # 对样本进行增强并保存至目标目录
+        for aug_index, aug in enumerate(augs):
+            image_aug, mask_aug = sample_aug(image, mask, aug)
+            image_aug = Image.fromarray(image_aug)
+            mask_aug = Image.fromarray(mask_aug)
 
-    # 对样本进行增强并保存至目标目录
-    for aug_index, aug in enumerate(augs):
-        image_aug, mask_aug = sample_aug(image, mask, aug)
-        image_aug = Image.fromarray(image_aug)
-        mask_aug = Image.fromarray(mask_aug)
-
-        # 为增强后的样本赋予新的名称
-        image_aug_name = os.path.join(save_path, 'train_images', \
-                                        image_name.replace('.jpg', '_' + str(aug_index) + '.jpg'))
-        mask_aug_name = os.path.join(save_path, 'train_mask', \
-                                        mask_name.replace('.png', '_' + str(aug_index) + '.png'))
+            # 为增强后的样本赋予新的名称
+            image_aug_name = os.path.join(save_path, 'train_images', \
+                                            image_name.replace('.jpg', '_' + str(aug_index) + '.jpg'))
+            mask_aug_name = os.path.join(save_path, 'train_mask', \
+                                            mask_name.replace('.png', '_' + str(aug_index) + '.png'))
         
-        image_aug.save(image_aug_name)
-        mask_aug.save(mask_aug_name)
+            image_aug.save(image_aug_name)
+            mask_aug.save(mask_aug_name)
+    else:
+        # 对于负样本，按照概率进行扩增
+        prob = random.random()
+        if prob > 0.6:
+            for aug_index, aug in enumerate(augs):
+                image_aug, mask_aug = sample_aug(image, mask, aug)
+                image_aug = Image.fromarray(image_aug)
+                mask_aug = Image.fromarray(mask_aug)
 
-    return image_name
+                # 为增强后的样本赋予新的名称
+                image_aug_name = os.path.join(save_path, 'train_images', \
+                                                image_name.replace('.jpg', '_' + str(aug_index) + '.jpg'))
+                mask_aug_name = os.path.join(save_path, 'train_mask', \
+                                                mask_name.replace('.png', '_' + str(aug_index) + '.png'))
+        
+                image_aug.save(image_aug_name)
+                mask_aug.save(mask_aug_name)
+
+    return image_name, mask_pixel_num
 
 
 def dataset_aug(dataset_root, save_root, augs=AUG):
@@ -85,8 +126,9 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
     partial_aug = partial(aug_save, original_path=dataset_root, save_path=save_root, augs=augs)
     pool = Pool(20)
     
-    for index, image_name in enumerate(pool.imap(partial_aug, images_name)):
-        sys.stdout.write('done %d/%d\r' % (index + 1, len(images_name)))
+    for index, (image_name, mask_pixel_num) in enumerate(pool.imap(partial_aug, images_name)):
+        descript = '%s :pixels, done %d / %d\r' % (str(bool(mask_pixel_num)), index + 1, len(images_name))
+        sys.stdout.write(descript)
 
     pool.close()
     pool.join()
