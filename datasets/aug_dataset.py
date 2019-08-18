@@ -23,7 +23,6 @@ from albumentations import (
 AUG = [
     HorizontalFlip(p=1.0), 
     Rotate(limit=15, p=1.0),
-    ElasticTransform(p=1, alpha=300, sigma=300 * 0.05, alpha_affine=300 * 0.03),
     ElasticTransform(p=1, alpha=500, sigma=500 * 0.05, alpha_affine=500 * 0.03)
 ]
 
