@@ -64,7 +64,7 @@ class Test(object):
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=1)
         elif self.model_type == 'deeplabv3plus':
-            self.unet = DeepLabV3Plus(model_backbone='res50_atrous', num_classes=self.output_ch)
+            self.unet = DeepLabV3Plus(model_backbone='res50_atrous', num_classes=1)
             # self.unet = DeepLabV3Plus(num_classes=1)
 
         print('build model done！')
@@ -206,15 +206,15 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'unet_resnet50'
+    model_name = 'deeplabv3plus'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, n_splits = 2, 5
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
-    threshold = 0.67
-    less_than_sum = 1536
+    threshold = 0.75
+    less_than_sum = 768
     test_best_mode = True
     print("stage: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage, n_splits, threshold, less_than_sum))
     solver = Test(model_name, image_size, mean, std)
