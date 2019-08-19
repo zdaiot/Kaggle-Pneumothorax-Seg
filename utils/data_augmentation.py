@@ -50,24 +50,26 @@ def data_augmentation(original_image, original_mask):
         mask_aug: 增强后的掩膜
     """
     augmentations = Compose([
-        # 直方图均衡化
-        CLAHE(p=0.4),
-
-        # 亮度、对比度
-        RandomGamma(gamma_limit=(80, 120), p=0.3),
-        RandomBrightnessContrast(p=0.3),
+        OneOf([
+                # 直方图均衡化
+                CLAHE(p=0.4),
+                # 亮度、对比度
+                RandomGamma(gamma_limit=(80, 120), p=0.3),
+                RandomBrightnessContrast(p=0.3),
+            ], p=0.4),
         
         # 模糊
         OneOf([
-                MotionBlur(p=0.2),
-                MedianBlur(blur_limit=3, p=0.2),
-                Blur(blur_limit=3, p=0.2),
-            ], p=0.3),
+                MotionBlur(p=0.3),
+                MedianBlur(blur_limit=3, p=0.3),
+                Blur(blur_limit=3, p=0.3),
+            ], p=0.4),
+                
         # 噪声  
         OneOf([
                 IAAAdditiveGaussianNoise(),
                 GaussNoise(),
-            ], p=0.3)
+            ], p=0.4)
     ])
     
     augmented = augmentations(image=original_image, mask=original_mask)
