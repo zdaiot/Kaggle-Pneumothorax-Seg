@@ -17,7 +17,7 @@ from albumentations import (
     RandomBrightness, RandomContrast, RandomGamma,OneOf,
     ToFloat, ShiftScaleRotate,GridDistortion, ElasticTransform, JpegCompression, HueSaturationValue,
     RGBShift, RandomBrightnessContrast, RandomContrast, Blur, MotionBlur, MedianBlur, GaussNoise,CenterCrop,
-    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate, OpticalDistortion, RandomScale, PadIfNeeded，
+    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate, OpticalDistortion, RandomScale, PadIfNeeded,
 )
 
 '''
@@ -32,15 +32,25 @@ AUG = [
 AUG = [
     # 角度旋转
     Compose([
-        Rotate(limit=15, p=1.0, border_mode=0, value=0, mask_value=0, always_apply=True),
+        Rotate(limit=(5, 15), border_mode=0, value=0, always_apply=True),
         ]),
-    
+
+    Compose([
+        Rotate(limit=(-15, -5), border_mode=0, value=0, always_apply=True),
+        ]),
+
     # 多尺度缩放，偏移等
     Compose([
-        # 随机偏移、尺度变换、角度翻转
+        # 随机偏移、尺度变换、角度翻转(尺度放大)
+        ShiftScaleRotate(shift_limit=0.05, scale_limit=(0.2, 0.3), rotate_limit=5, border_mode=0, value=0, always_apply=True),
+        PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=0, always_apply=True),
+        ]),
+    
+    Compose([
+        # 随机偏移、尺度变换、角度翻转(尺度缩小)
         # RandomScale(scale_limit=0.3, p=1.0),
-        ShiftScaleRotate(shift_limit=0.07, scale_limit=0.1, rotate_limit=15, border_mode=0, value=0, mask_value=0, always_apply=True),
-        PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=0, mask_value=0, always_apply=True),
+        ShiftScaleRotate(shift_limit=0.05, scale_limit=(-0.3, -0.2), rotate_limit=5, border_mode=0, value=0, always_apply=True),
+        PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=0, always_apply=True),
         ])
     ]
 
@@ -94,7 +104,7 @@ def aug_save(image_name, original_path, save_path, augs=AUG):
     else:
         # 对于负样本，按照概率进行扩增
         prob = random.random()
-        if prob > 0.6:
+        if prob < 0.45:
             for aug_index, aug in enumerate(augs):
                 image_aug, mask_aug = sample_aug(image, mask, aug)
                 image_aug = Image.fromarray(image_aug)
@@ -124,7 +134,7 @@ def dataset_aug(dataset_root, save_root, augs=AUG):
     images_name = os.listdir(images_path)
 
     partial_aug = partial(aug_save, original_path=dataset_root, save_path=save_root, augs=augs)
-    pool = Pool(20)
+    pool = Pool(40)
     
     for index, (image_name, mask_pixel_num) in enumerate(pool.imap(partial_aug, images_name)):
         descript = '%s :pixels, done %d / %d\r' % (str(bool(mask_pixel_num)), index + 1, len(images_name))

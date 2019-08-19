@@ -169,7 +169,7 @@ class DatasetsStatic(object):
         ax1.hist(mask_pix_num, 100, histtype='bar', facecolor='pink', alpha=0.75, cumulative=True, rwidth=0.8)
         ax1.set_title('Accumlation Pixes Num of Mask')
         fig.subplots_adjust(hspace=0.4)
-        plt.show()
+        plt.savefig('./dataset_static.png')
 
     def cal_mask_pixes(self, mask_path):
         """计算样本的标记的掩膜所包含的像素的总数
@@ -188,14 +188,15 @@ class DatasetsStatic(object):
 
 
 if __name__ == "__main__":
-    dataset_root = 'datasets/SIIM_data'
+    dataset_root = 'datasets/SIIM_AUG'
     images_folder = 'train_images'
     masks_folder = 'train_mask'
     ds = DatasetsStatic(dataset_root, images_folder, masks_folder)
 
-    _, _, masks_level = ds.mask_static_level(level=10)
-    for i in masks_level:
-        print(i)
+    # _, _, masks_level = ds.mask_static_level(level=10)
+    # for i in masks_level:
+    #     print(i)
+
     
     ds.mask_num_static()
     average_num = ds.mask_pixes_average_num()

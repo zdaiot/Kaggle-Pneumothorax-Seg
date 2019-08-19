@@ -49,31 +49,25 @@ def data_augmentation(original_image, original_mask):
         image_aug: 增强后的图片
         mask_aug: 增强后的掩膜
     """
-    original_height, original_width = original_image.shape[:2]
     augmentations = Compose([
-        OneOf([
-                HorizontalFlip(p=0.4),
-                Rotate(limit=15, p=0.5),   
-            ], p=0.75),
-        
         # 直方图均衡化
         CLAHE(p=0.4),
 
         # 亮度、对比度
-        RandomGamma(gamma_limit=(80, 120), p=0.1),
-        RandomBrightnessContrast(p=0.1),
+        RandomGamma(gamma_limit=(80, 120), p=0.3),
+        RandomBrightnessContrast(p=0.3),
         
         # 模糊
         OneOf([
-                MotionBlur(p=0.1),
-                MedianBlur(blur_limit=3, p=0.1),
-                Blur(blur_limit=3, p=0.1),
+                MotionBlur(p=0.2),
+                MedianBlur(blur_limit=3, p=0.2),
+                Blur(blur_limit=3, p=0.2),
             ], p=0.3),
-        
+        # 噪声  
         OneOf([
                 IAAAdditiveGaussianNoise(),
                 GaussNoise(),
-            ], p=0.2)
+            ], p=0.3)
     ])
     
     augmented = augmentations(image=original_image, mask=original_mask)
@@ -84,8 +78,8 @@ def data_augmentation(original_image, original_mask):
 
 
 if __name__ == "__main__":
-    mask_path = "datasets/SIIM_data/train_mask"
-    image_path = "datasets/SIIM_data/train_images"
+    mask_path = "datasets/SIIM_AUG/train_mask"
+    image_path = "datasets/SIIM_AUG/train_images"
     batch_size = 16
     images_name = glob.glob(image_path+'/*.jpg')
 
