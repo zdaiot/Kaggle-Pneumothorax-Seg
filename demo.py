@@ -69,7 +69,8 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
     elif model_name == 'linknet':
         model = LinkNet34(num_classes=1)
     elif model_name == 'deeplabv3plus':
-        model = DeepLabV3Plus(num_classes=1)
+        model = DeepLabV3Plus(model_backbone='res50_atrous', num_classes=self.output_ch)
+        # model = DeepLabV3Plus(num_classes=1)
     elif model_name == 'pspnet_resnet34':
         model = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
     elif model_name == 'unet_se_resnext50_32x4d':

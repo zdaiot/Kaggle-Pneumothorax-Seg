@@ -94,7 +94,7 @@ class Train(object):
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
         elif self.model_type == 'deeplabv3plus':
-            self.unet = DeepLabV3Plus(num_classes=self.output_ch)
+            self.unet = DeepLabV3Plus(model_backbone='res50_atrous', num_classes=self.output_ch)
         elif self.model_type == 'pspnet_resnet34':
             self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
 

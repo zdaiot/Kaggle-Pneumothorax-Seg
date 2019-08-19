@@ -64,7 +64,8 @@ class Test(object):
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=1)
         elif self.model_type == 'deeplabv3plus':
-            self.unet = DeepLabV3Plus(num_classes=1)
+            self.unet = DeepLabV3Plus(model_backbone='res50_atrous', num_classes=self.output_ch)
+            # self.unet = DeepLabV3Plus(num_classes=1)
 
         print('build model done！')
 
