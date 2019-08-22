@@ -20,6 +20,8 @@ from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
+from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
+
 
 class Train(object):
     def __init__(self, config, train_loader, valid_loader):
@@ -47,6 +49,7 @@ class Train(object):
         self.start_epoch, self.max_dice = 0, 0
         self.lr_stage2 = config.lr_stage2
         self.weight_decay = config.weight_decay
+        self.weight_decay_stage2 = config.weight_decay_stage2
 
         # save set
         self.save_path = config.save_path
@@ -67,6 +70,7 @@ class Train(object):
         self.build_model()
 
     def build_model(self):
+        print("Using model: {}".format(self.model_type))
         """Build generator and discriminator."""
         if self.model_type == 'U_Net':
             self.unet = U_Net(img_ch=3, output_ch=self.output_ch)
@@ -90,6 +94,8 @@ class Train(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'scSE_FPA_unet_resnet34':
+            self.unet = Res34Unetv5()
         
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
@@ -262,7 +268,7 @@ class Train(object):
         # self.unet.apply(set_bn_eval)
 
         # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-5}, {'params': self.unet.encoder.parameters(), 'lr': 1e-7},])
-        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay)
+        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay_stage2)
 
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:

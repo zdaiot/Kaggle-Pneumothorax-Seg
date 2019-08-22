@@ -32,24 +32,24 @@ AUG = [
 AUG = [
     # 角度旋转
     Compose([
-        Rotate(limit=(5, 15), border_mode=0, value=0, always_apply=True),
+        Rotate(limit=(10, 15), border_mode=0, value=0, always_apply=True),
         ]),
 
     Compose([
-        Rotate(limit=(-15, -5), border_mode=0, value=0, always_apply=True),
+        Rotate(limit=(-15, -10), border_mode=0, value=0, always_apply=True),
         ]),
 
     # 多尺度缩放，偏移等
     Compose([
         # 随机偏移、尺度变换、角度翻转(尺度放大)
-        ShiftScaleRotate(shift_limit=0.05, scale_limit=(0.2, 0.3), rotate_limit=5, border_mode=0, value=0, always_apply=True),
+        ShiftScaleRotate(shift_limit=0.03, scale_limit=(0.2, 0.3), rotate_limit=10, border_mode=0, value=0, always_apply=True),
         PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=0, always_apply=True),
         ]),
     
     Compose([
         # 随机偏移、尺度变换、角度翻转(尺度缩小)
         # RandomScale(scale_limit=0.3, p=1.0),
-        ShiftScaleRotate(shift_limit=0.05, scale_limit=(-0.3, -0.2), rotate_limit=5, border_mode=0, value=0, always_apply=True),
+        ShiftScaleRotate(shift_limit=0.03, scale_limit=(-0.3, -0.2), rotate_limit=10, border_mode=0, value=0, always_apply=True),
         PadIfNeeded(min_height=1024, min_width=1024, border_mode=0, value=0, always_apply=True),
         ])
     ]
@@ -104,7 +104,7 @@ def aug_save(image_name, original_path, save_path, augs=AUG):
     else:
         # 对于负样本，按照概率进行扩增
         prob = random.random()
-        if prob < 0.45:
+        if prob < 1.0:
             for aug_index, aug in enumerate(augs):
                 image_aug, mask_aug = sample_aug(image, mask, aug)
                 image_aug = Image.fromarray(image_aug)

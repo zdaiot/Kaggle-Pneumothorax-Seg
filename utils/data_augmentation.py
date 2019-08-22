@@ -10,7 +10,7 @@ from albumentations import (
     RandomBrightness, RandomContrast, RandomGamma,OneOf,
     ToFloat, ShiftScaleRotate,GridDistortion, ElasticTransform, JpegCompression, HueSaturationValue,
     RGBShift, RandomBrightnessContrast, RandomContrast, Blur, MotionBlur, MedianBlur, GaussNoise,CenterCrop,
-    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate
+    IAAAdditiveGaussianNoise,GaussNoise,Cutout,Rotate, PadIfNeeded,
 )
 
 

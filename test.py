@@ -24,6 +24,7 @@ from albumentations import CLAHE
 import json
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
+from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
 
 
 class Test(object):
@@ -58,6 +59,8 @@ class Test(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'scSE_FPA_unet_resnet34':
+            self.unet = Res34Unetv5()
 
         elif self.model_type == 'pspnet_resnet34':
             self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
@@ -194,7 +197,7 @@ class Test(object):
         preds += original_pred
 
         # 求平均
-        pred = preds / 3
+        pred = preds / 3.0
 
         return pred
 
@@ -206,15 +209,15 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'deeplabv3plus'
+    model_name = 'unet_resnet34'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage, n_splits = 2, 5
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
-    threshold = 0.75
-    less_than_sum = 768
+    threshold = 0.67
+    less_than_sum = 2048
     test_best_mode = True
     print("stage: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage, n_splits, threshold, less_than_sum))
     solver = Test(model_name, image_size, mean, std)

@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import tqdm
 from utils.loss import GetLoss, FocalLoss, RobustFocalLoss2d
 from torch.utils.tensorboard import SummaryWriter
+from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
 
 
 class Train(object):
@@ -76,6 +77,9 @@ class Train(object):
         elif self.model_type == 'unet_resnet34':
             # self.unet = Unet(backbone_name='resnet34', pretrained=True, classes=self.output_ch)
             self.unet = smp.Unet('resnet34', encoder_weights='imagenet', activation=None)
+        elif self.model_type == 'scSE_FPA_unet_resnet34':
+            self.unet = Res34Unetv5()
+
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
         elif self.model_type == 'deeplabv3plus':
