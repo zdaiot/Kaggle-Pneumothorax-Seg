@@ -49,27 +49,31 @@ def data_augmentation(original_image, original_mask):
         image_aug: 增强后的图片
         mask_aug: 增强后的掩膜
     """
+    original_height, original_width = original_image.shape[:2]
     augmentations = Compose([
-        OneOf([
-                # 直方图均衡化
-                CLAHE(p=0.4),
-                # 亮度、对比度
-                RandomGamma(gamma_limit=(80, 120), p=0.3),
-                RandomBrightnessContrast(p=0.3),
-            ], p=0.4),
+        # 水平翻转
+        HorizontalFlip(p=0.4),   
+        # 随机缩放、平移、旋转
+        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.3, rotate_limit=15, p=0.4),
+        # padding
+        PadIfNeeded(min_height=original_height, min_width=original_width, p=1.0),
+        # 直方图均衡化
+        CLAHE(p=0.4),
+        # 亮度、对比度
+        RandomGamma(gamma_limit=(80, 120), p=0.1),
+        RandomBrightnessContrast(p=0.1),
         
         # 模糊
         OneOf([
-                MotionBlur(p=0.3),
-                MedianBlur(blur_limit=3, p=0.3),
-                Blur(blur_limit=3, p=0.3),
-            ], p=0.4),
-                
-        # 噪声  
+                MotionBlur(p=0.1),
+                MedianBlur(blur_limit=3, p=0.1),
+                Blur(blur_limit=3, p=0.1),
+            ], p=0.3),
+        
         OneOf([
                 IAAAdditiveGaussianNoise(),
                 GaussNoise(),
-            ], p=0.4)
+            ], p=0.2)
     ])
     
     augmented = augmentations(image=original_image, mask=original_mask)
