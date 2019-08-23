@@ -24,7 +24,6 @@ from albumentations import CLAHE
 import json
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
-from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
 
 
 class Test(object):
@@ -59,8 +58,6 @@ class Test(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
-        elif self.model_type == 'scSE_FPA_unet_resnet34':
-            self.unet = Res34Unetv5()
 
         elif self.model_type == 'pspnet_resnet34':
             self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
@@ -74,13 +71,14 @@ class Test(object):
 
         self.unet.to(self.device)
 
-    def test_model(self, threshold, stage, n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None):
-        """
-        threshold: 阈值，高于这个阈值的置为1，否则置为0
-        stage: 测试第几阶段的结果
-        n_splits: 测试多少折的结果进行平均
-        test_best_model: 是否要使用最优模型测试，若不是的话，则取最新的模型测试
-        less_than_sum: 预测图片中有预测出的正样本总和小于这个值时，则忽略所有
+    def test_model(self, thresholds, stage, test_best_model=True, less_than_sums=[2048*2], csv_path=None, test_image_path=None):
+        """采取多数决定少数的投票策略
+
+        Args:
+            thresholds: list, 各个折的单独阈值，高于这个阈值的置为1，否则置为0
+            stage: 测试第几阶段的结果
+            test_best_model: 是否要使用最优模型测试，若不是的话，则取最新的模型测试
+            less_than_sums: list, 各个折的像素阈值， 预测图片中有预测出的正样本总和小于这个值时，则忽略所有
         """
         self.build_model()
 
@@ -88,9 +86,10 @@ class Test(object):
         sample_df = pd.read_csv(csv_path)
         preds = np.zeros([len(sample_df), self.image_size, self.image_size])
 
-        for fold in range(n_splits):
+        for fold, (threshold, less_than_sum) in enumerate(zip(thresholds, less_than_sums)):
+            print("Testing fold: {}, threshold: {}, less_than_sum: {}".format(fold, threshold, less_than_sum))
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 0))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, fold))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
@@ -104,28 +103,32 @@ class Test(object):
                     img = Image.open(img_path).convert('RGB')
                     
                     pred = self.tta(img)
+                    pred = np.where(pred > threshold, 1, 0)
+                    if np.sum(pred) < less_than_sum:
+                        pred[:] = 0
                     preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
-            # 如果取消注释，则只测试一个fold的
-            n_splits = 1
-            break
-
+       
+        fold_num = len(thresholds)
+        # 求票数
+        vote_ticket = round(fold_num / 2.0)
+        print("Fold number: {}, Vote ticket is: {}".format(fold_num, vote_ticket))
         rle = []
         count_has_mask = 0
-        preds_average = preds/n_splits
-        for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
+        tbar = tqdm(sample_df.iterrows(), total=len(sample_df))
+        # 开始投票
+        for index, row in tbar:
             file = row['ImageId']
-
-            pred = cv2.resize(preds_average[index,...],(1024, 1024))
-            pred = np.where(pred>threshold, 1, 0)
-
-            if np.sum(pred) < less_than_sum:
-                pred[:] = 0
+            # 高于票数的为1，否则为0
+            pred = np.where(preds[index, ...] > vote_ticket, 1, 0)
+            pred = cv2.resize(pred, (1024, 1024))
             encoding = mask_to_rle(pred.T, 1024, 1024)
             if encoding == ' ':
                 rle.append([file.strip(), '-1'])
             else:
                 count_has_mask += 1
                 rle.append([file.strip(), encoding[1:]])
+            descript = "Mask: {}".format(count_has_mask)
+            tbar.set_description(desc=descript)
 
         print('The number of masked pictures predicted:',count_has_mask)
         submission_df = pd.DataFrame(rle, columns=['ImageId','EncodedPixels'])
@@ -197,7 +200,7 @@ class Test(object):
         preds += original_pred
 
         # 求平均
-        pred = preds / 3.0
+        pred = preds / 3
 
         return pred
 
@@ -216,9 +219,9 @@ if __name__ == "__main__":
         image_size = 768
     elif stage == 2:
         image_size = 1024
-    threshold = 0.67
-    less_than_sum = 2048
+    thresholds = []
+    less_than_sums = []
     test_best_mode = True
     print("stage: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage, n_splits, threshold, less_than_sum))
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=threshold, stage=stage, n_splits=n_splits, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=threshold, stage=stage, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)
