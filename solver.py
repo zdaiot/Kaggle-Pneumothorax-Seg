@@ -20,7 +20,7 @@ from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
-from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
+from models.hpc_unet import HyperColumnUnet
 
 
 class Train(object):
@@ -94,9 +94,9 @@ class Train(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
-        elif self.model_type == 'scSE_FPA_unet_resnet34':
-            self.unet = Res34Unetv5()
-        
+        elif self.model_type == 'hpcunet_resnet34':
+            self.unet = HyperColumnUnet('resnet34', encoder_weights='imagenet', activation=None)
+
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
         elif self.model_type == 'deeplabv3plus':
@@ -312,7 +312,7 @@ class Train(object):
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
-                assert images.size(2) == 1024
+                # assert images.size(2) == 1024
 
                 # SR : Segmentation Result
                 net_output = self.unet(images)

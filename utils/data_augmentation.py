@@ -53,10 +53,8 @@ def data_augmentation(original_image, original_mask):
     augmentations = Compose([
         # 水平翻转
         HorizontalFlip(p=0.4),   
-        # 随机缩放、平移、旋转
-        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.3, rotate_limit=15, p=0.4),
-        # padding
-        PadIfNeeded(min_height=original_height, min_width=original_width, p=1.0),
+        Rotate(limit=15, p=0.4),   
+        CenterCrop(p=0.3, height=original_height, width=original_width),
         # 直方图均衡化
         CLAHE(p=0.4),
         # 亮度、对比度
