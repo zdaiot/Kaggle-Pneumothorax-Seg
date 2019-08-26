@@ -39,47 +39,22 @@ def one_hot(target, class_num):
 
     return target_oh
 
-# reference: https://github.com/asanakoy/kaggle_carvana_segmentation
-def dice_loss(preds, trues, weight=None, is_average=True):
-    num = preds.size(0)
-    preds = preds.view(num, -1)
-    trues = trues.view(num, -1)
-    if weight is not None:
-        w = torch.autograd.Variable(weight).view(num, -1)
-        preds = preds * w
-        trues = trues * w
-    intersection = (preds * trues).sum(1)
-    scores = 2. * (intersection + 1) / (preds.sum(1) + trues.sum(1) + 1)
 
-    if is_average:
-        score = scores.sum() / num
-        return torch.clamp(score, 0., 1.)
-    else:
-        return scores
+def dice_overall(preds, targs):
+    n = preds.shape[0]  # batch size为多少
+    preds = preds.view(n, -1)
+    targs = targs.view(n, -1)
+    preds, targs = preds.cpu(), targs.cpu()
 
-def dice_clamp(preds, trues, is_average=True):
-    preds = torch.round(preds)
-    return dice_loss(preds, trues, is_average=is_average)
+    # tensor之间按位相成，求两个集合的交(只有1×1等于1)后。按照第二个维度求和，得到[batch size]大小的tensor，每一个值代表该输入图片真实类标与预测类标的交集大小
+    intersect = (preds * targs).sum(-1).float()
+    # tensor之间按位相加，求两个集合的并。然后按照第二个维度求和，得到[batch size]大小的tensor，每一个值代表该输入图片真实类标与预测类标的并集大小
+    union = (preds + targs).sum(-1).float()
+    u0 = union == 0
+    intersect[u0] = 1
+    union[u0] = 2
 
-class DiceLoss(nn.Module):
-    """
-    """
-    def __init__(self, size_average=True):
-        super().__init__()
-        self.size_average = size_average
-
-    def forward(self, input, target, weight=None):
-        return 1 - dice_loss(F.sigmoid(input), target, weight=weight, is_average=self.size_average)
-
-class BCEDiceLoss(nn.Module):
-    def __init__(self, size_average=True, weight=None):
-        super().__init__()
-        self.size_average = size_average
-        self.weight = weight
-        self.dice = DiceLoss(size_average=size_average)
-
-    def forward(self, input, target):
-        return nn.modules.loss.BCEWithLogitsLoss(size_average=self.size_average, weight=self.weight)(input, target) + self.dice(input, target, weight=self.weight)
+    return 2. * intersect / union
 
 
 # reference https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/101429#latest-588288
@@ -121,8 +96,8 @@ class SoftDiceLoss(nn.Module):
         t = w * (t*2 - 1)
 
         intersection = (p * t).sum(-1)
-        union =  (p * p).sum(-1) + (t * t).sum(-1)
-        dice  = 1 - 2 * intersection/union
+        union = (p * p).sum(-1) + (t * t).sum(-1)
+        dice = 1 - 2 * intersection/union
 
         loss = dice
         return loss
@@ -162,16 +137,22 @@ class SoftBCEDiceLoss(nn.Module):
         super(SoftBCEDiceLoss, self).__init__()
         self.size_average = size_average
         self.weight = weight
-        self.bce_loss = nn.BCEWithLogitsLoss(size_average=self.size_average, pos_weight=torch.tensor(self.weight[1]))
+        if self.size_average:
+            self.bce_loss = nn.BCEWithLogitsLoss(reduction='mean', pos_weight=torch.tensor(self.weight[1]))
+        else:
+            self.bce_loss = nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor(self.weight[1]))
         # self.bce_loss = SoftBceLoss(weight=weight)
         self.softdiceloss = SoftDiceLoss(size_average=self.size_average, weight=weight)
     
-    def forward(self, input, target):
+    def forward(self, input, target, samples_weight):
         soft_bce_loss = self.bce_loss(input, target)
         soft_dice_loss = self.softdiceloss(input, target)
+        soft_bce_loss = soft_bce_loss.mean(dim=1)
         loss = soft_bce_loss + soft_dice_loss
+        loss = samples_weight * loss
+        loss = loss.mean()
 
-        return loss, soft_bce_loss, soft_dice_loss
+        return loss, soft_bce_loss.mean(), soft_dice_loss.mean()
 
 class LovaszLoss(nn.Module):
     '''加权lovasz loss

@@ -217,7 +217,7 @@ if __name__ == "__main__":
     elif stage == 2:
         image_size = 1024
     threshold = 0.71
-    less_than_sum = 1024
+    less_than_sum = 512
     test_best_mode = True
     print("stage: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage, n_splits, threshold, less_than_sum))
     solver = Test(model_name, image_size, mean, std)

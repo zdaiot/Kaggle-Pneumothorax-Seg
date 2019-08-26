@@ -15,7 +15,7 @@ import csv
 import matplotlib.pyplot as plt
 import tqdm
 from backboned_unet import Unet
-from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss, SoftBceLoss, LovaszLoss
+from utils.loss import GetLoss, RobustFocalLoss2d, SoftBCEDiceLoss, SoftBceLoss, LovaszLoss
 from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 from models.Transpose_unet.unet.model import Unet as Unet_t
@@ -34,9 +34,9 @@ class Train(object):
         self.optimizer = None
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
-        self.criterion = SoftBCEDiceLoss(weight=[0.25, 0.75])
+        self.criterion = SoftBCEDiceLoss(size_average=False, weight=[0.25, 0.75])
         # self.criterion = torch.nn.BCEWithLogitsLoss()
-        self.criterion_stage2 = SoftBCEDiceLoss(weight=[0.25, 0.75])
+        self.criterion_stage2 = SoftBCEDiceLoss(size_average=False, weight=[0.25, 0.75])
         self.model_type = config.model_type
         self.t = config.t
 
@@ -123,14 +123,15 @@ class Train(object):
         """Zero the gradient buffers."""
         self.unet.zero_grad()
 
-    def save_checkpoint(self, state, stage, index, is_best): 
+    def save_checkpoint(self, state, stage, index, boost_index, is_best): 
         # 保存权重，每一epoch均保存一次，若为最优，则复制到最优权重；index可以区分不同的交叉验证 
-        pth_path = os.path.join(self.save_path, '%s_%d_%d.pth' % (self.model_type, stage, index))
+        pth_path = os.path.join(self.save_path, '%s_%d_%d_%d.pth' % (self.model_type, stage, index, boost_index))
         torch.save(state, pth_path)
         if is_best:
             print('Saving Best Model.')
             write_txt(self.save_path, 'Saving Best Model.')
-            shutil.copyfile(os.path.join(self.save_path, '%s_%d_%d.pth' % (self.model_type, stage, index)), os.path.join(self.save_path, '%s_%d_%d_best.pth' % (self.model_type, stage, index)))
+            shutil.copyfile(os.path.join(self.save_path, '%s_%d_%d_%d.pth' % (self.model_type, stage, index, boost_index)), \
+                os.path.join(self.save_path, '%s_%d_%d_%d_best.pth' % (self.model_type, stage, index, boost_index)))
 
     def load_checkpoint(self, load_optimizer=True):
         # Load the pretrained Encoder
@@ -153,7 +154,7 @@ class Train(object):
         else:
             raise FileNotFoundError("Can not find weight file in {}".format(weight_path))
 
-    def train(self, index):
+    def train(self, index, boost_index):
         # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-4}, {'params': self.unet.encoder.parameters(), 'lr': 1e-6},])
         self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, weight_decay=self.weight_decay)
 
@@ -189,16 +190,17 @@ class Train(object):
 
             epoch_loss = 0
             tbar = tqdm.tqdm(self.train_loader)
-            for i, (images, masks) in enumerate(tbar):
+            for i, (images, masks, samples_weight) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                samples_weight = samples_weight.to(self.device)
 
                 # SR : Segmentation Result
                 net_output = self.unet(images)
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
-                loss_set = self.criterion(net_output_flat, masks_flat)
+                loss_set = self.criterion(net_output_flat, masks_flat, samples_weight)
                 
                 try:
                     loss_num = len(loss_set)
@@ -250,7 +252,7 @@ class Train(object):
                 'optimizer' : self.optimizer.state_dict(),
                 'lr' : self.lr}
             
-            self.save_checkpoint(state, 1, index, is_best)
+            self.save_checkpoint(state, 1, index, boost_index, is_best)
 
             self.writer.add_scalar('Stage1_val_loss', loss_mean, epoch)
             self.writer.add_scalar('Stage1_val_dice', dice_mean, epoch)
@@ -259,7 +261,7 @@ class Train(object):
             # 学习率衰减
             lr_scheduler.step()
 
-    def train_stage2(self, index):
+    def train_stage2(self, index, boost_index):
         # # 冻结BN层， see https://zhuanlan.zhihu.com/p/65439075 and https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/100736591271 for more information
         # def set_bn_eval(m):
         #     classname = m.__class__.__name__
@@ -308,17 +310,18 @@ class Train(object):
             self.reset_grad() # 梯度累加的时候需要使用
             
             tbar = tqdm.tqdm(self.train_loader)
-            for i, (images, masks) in enumerate(tbar):
+            for i, (images, masks, samples_weight) in enumerate(tbar):
                 # GT : Ground Truth
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                samples_weight = samples_weight.to(self.device)
                 # assert images.size(2) == 1024
 
                 # SR : Segmentation Result
                 net_output = self.unet(images)
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
-                loss_set = self.criterion_stage2(net_output_flat, masks_flat)
+                loss_set = self.criterion_stage2(net_output_flat, masks_flat, samples_weight)
 
                 try:
                     loss_num = len(loss_set)
@@ -377,7 +380,7 @@ class Train(object):
                 'optimizer' : self.optimizer.state_dict(),
                 'lr' : self.lr}
             
-            self.save_checkpoint(state, 2, index, is_best)
+            self.save_checkpoint(state, 2, index, boost_index, is_best)
 
             self.writer.add_scalar('Stage2_val_loss', loss_mean, epoch)
             self.writer.add_scalar('Stage2_val_dice', dice_mean, epoch)
@@ -398,15 +401,16 @@ class Train(object):
         elif stage == 2:
             criterion = self.criterion_stage2
         with torch.no_grad(): 
-            for i, (images, masks) in enumerate(tbar):
+            for i, (images, masks, samples_weight) in enumerate(tbar):
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                samples_weight = samples_weight.to(self.device)
 
                 net_output = self.unet(images)
                 net_output_flat = net_output.view(net_output.size(0), -1)
                 masks_flat = masks.view(masks.size(0), -1)
                 
-                loss_set = criterion(net_output_flat, masks_flat)
+                loss_set = criterion(net_output_flat, masks_flat, samples_weight)
                 try:
                     loss_num = len(loss_set)
                 except:
@@ -420,7 +424,7 @@ class Train(object):
                 loss_sum += loss.item()
 
                 # 计算dice系数，预测出的矩阵要经过sigmoid含义以及阈值，阈值默认为0.5
-                net_output_flat_sign = (torch.sigmoid(net_output_flat)>0.5).float()
+                net_output_flat_sign = (torch.sigmoid(net_output_flat) > 0.5).float()
                 dice = self.dice_overall(net_output_flat_sign, masks_flat).mean()
                 dice_sum += dice.item()
 

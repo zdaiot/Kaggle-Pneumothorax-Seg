@@ -20,7 +20,7 @@ import pickle
 class SIIMDataset(torch.utils.data.Dataset):
     """从csv标注文件中抽取有标记的样本用作训练集
     """
-    def __init__(self, train_image, train_mask, image_size, augmentation_flag, compare_image_mask_path=False):
+    def __init__(self, train_image, train_mask, samples_weight, image_size, augmentation_flag, compare_image_mask_path=False):
         """
         Args:
             param df_path: csv文件的路径
@@ -41,6 +41,8 @@ class SIIMDataset(torch.utils.data.Dataset):
         # 所有样本和掩膜的名称
         self.image_names = train_image
         self.mask_names = train_mask
+        # 样本的权重
+        self.samples_weight = samples_weight
         self.compare_image_mask_path = compare_image_mask_path
 
     def __getitem__(self, idx):
@@ -65,8 +67,9 @@ class SIIMDataset(torch.utils.data.Dataset):
         # 对图片和mask同时进行转换
         img = self.image_transform(img)
         mask = self.mask_transform(mask)
+        sample_weight = self.samples_weight[idx]
 
-        return img, mask
+        return img, mask, sample_weight
 
     def image_transform(self, image):
         """对样本进行预处理
@@ -155,12 +158,12 @@ def weight_mask(dataset, weights_sample=[1, 3]):
     return weights
 
 
-def get_loader(train_image, train_mask, val_image, val_mask, image_size=224, batch_size=2, num_workers=2, augmentation_flag=False, weights_sample=None):
+def get_loader(train_image, train_mask, samples_weight, val_image, val_mask, image_size=224, batch_size=2, num_workers=2, augmentation_flag=False, shuffle=True, weights_sample=None):
     """Builds and returns Dataloader."""
     # train loader
-    dataset_train = SIIMDataset(train_image, train_mask, image_size, augmentation_flag)
+    dataset_train = SIIMDataset(train_image, train_mask, samples_weight, image_size, augmentation_flag)
     # val loader, 验证集要保证augmentation_flag为False
-    dataset_val = SIIMDataset(val_image, val_mask, image_size, augmentation_flag=False)    
+    dataset_val = SIIMDataset(val_image, val_mask, samples_weight, image_size, augmentation_flag=False)    
     
     # 依据weigths_sample决定是否对训练集的样本进行采样
     if weights_sample:
@@ -176,9 +179,9 @@ def get_loader(train_image, train_mask, val_image, val_mask, image_size=224, bat
         sampler = WeightedRandomSampler(weights, num_samples=len(dataset_train), replacement=True)
         train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True)
     else: 
-        train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
+        train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=shuffle, pin_memory=True)
     
-    val_data_loader = DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
+    val_data_loader = DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=shuffle, pin_memory=True)
 
     return train_data_loader, val_data_loader
 

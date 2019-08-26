@@ -12,6 +12,9 @@ from sklearn.model_selection import KFold, StratifiedKFold
 import numpy as np
 import pickle
 from datetime import datetime
+from adaboost import AdaBoost
+from utils.loss import SoftDiceLoss, dice_overall
+
 
 FREEZE = False
 if FREEZE:
@@ -70,55 +73,9 @@ def main(config):
         val_image = [images_path[x] for x in val_index]
         val_mask = [masks_path[x] for x in val_index]
 
-        # 对于第一个阶段方法的处理
-        train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage1,
-                                        config.batch_size_stage1, config.num_workers, config.stage1_augmentation_flag, weights_sample=config.weight_sample)
-        solver = Train(config, train_loader, val_loader)
-        # 针对不同mode，在第一阶段的处理方式
-        if config.mode == 'train':
-            solver.train(index)
-        elif config.mode == 'train_stage2':
-            pass
-        else:
-            # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
-            if config.two_stage == False:
-                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
-                scores.append(score)
-                best_thrs.append(best_thr)
-                best_pixel_thrs.append(best_pixel_thr)
-                result[str(index)] = [best_thr, best_pixel_thr, score]
-            else:
-                pass
-
-        # 对于第二个阶段的处理方法
-        if config.two_stage == True:
-            del train_loader, val_loader
-            train_loader_, val_loader_ = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
-                                        config.batch_size_stage2, config.num_workers, config.stage2_augmentation_flag, weights_sample=config.weight_sample)
-            # 更新类的训练集以及验证集
-            solver.train_loader, solver.val_loader = train_loader_, val_loader_
-            
-            # 针对不同mode，在第二阶段的处理方式
-            if config.mode == 'train' or config.mode == 'train_stage2':
-                solver.train_stage2(index)
-            else:
-                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
-                scores.append(score)
-                best_thrs.append(best_thr)
-                best_pixel_thrs.append(best_pixel_thr)
-                result[str(index)] = [best_thr, best_pixel_thr, score]
-
-    # 若为选阈值操作，则输出n_fold折验证集结果的平均值
-    if config.mode == 'choose_threshold':
-        score_mean = np.array(scores).mean()
-        thr_mean = np.array(best_thrs).mean()
-        pixel_thr_mean = np.array(best_pixel_thrs).mean()
-        print('score_mean:{}, thr_mean:{}, pixel_thr_mean:{}'.format(score_mean, thr_mean, pixel_thr_mean))
-        result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
-
-        with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
-            json.dump(result, json_file, ensure_ascii=False)
-        print('save the result')
+        model_adaboost = AdaBoost(5, config, index, train_image, train_mask, val_image, val_mask,
+                                  dice_overall)
+        model_adaboost.boost()        
 
 
 if __name__ == '__main__':
@@ -154,7 +111,7 @@ if __name__ == '__main__':
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
         parser.add_argument('--batch_size_stage2', type=int, default=10, help='batch size in the second stage')
-        parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=6, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
@@ -166,17 +123,18 @@ if __name__ == '__main__':
         parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
         parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
-            help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')
+            help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121/hpcunet_resnet34')
 
         # model hyper-parameters
         parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
         parser.add_argument('--img_ch', type=int, default=3)
         parser.add_argument('--output_ch', type=int, default=1)
         parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
-        parser.add_argument('--num_workers', type=int, default=8)
+        parser.add_argument('--num_workers', type=int, default=16)
         parser.add_argument('--lr', type=float, default=2e-4, help='init lr in stage1')
         parser.add_argument('--lr_stage2', type=float, default=5e-6, help='init lr in stage2')
         parser.add_argument('--weight_decay', type=float, default=0, help='weight_decay in optimizer')
+        parser.add_argument('--weight_decay_stage2', type=float, default=0, help='weight_decay in optimizer')
         
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')
