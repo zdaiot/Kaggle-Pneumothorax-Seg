@@ -4,6 +4,7 @@ from solver import Train
 from datasets.siim import get_loader
 from tqdm import tqdm
 import torch
+import pickle
 
 
 class AdaBoost(object):
@@ -44,7 +45,6 @@ class AdaBoost(object):
             config: 训练配置
             index: 训练的折数
         """
-        # 第一阶段训练
         train_loader, val_loader = get_loader(
             self.train_images, 
             self.train_masks, 
@@ -56,9 +56,12 @@ class AdaBoost(object):
             num_workers=self.config.num_workers,
             augmentation_flag=self.config.stage1_augmentation_flag
             )
-        
         model_solver = Train(self.config, train_loader, val_loader)
-        model_solver.train(self.index, boost_index)
+        
+        if not self.config.resume:
+            # 唤醒状态下不训练第一阶段
+            model_solver.train(self.index, boost_index)
+        
         # 第二阶段训练
         train_loader, val_loader = get_loader(
             self.train_images, 
@@ -71,8 +74,12 @@ class AdaBoost(object):
             num_workers=self.config.num_workers,
             augmentation_flag=self.config.stage2_augmentation_flag
             )
-        model_solver = Train(self.config, train_loader, val_loader)
+        # 更新数据集
+        model_solver.train_loader = train_loader
+        model_solver.valid_loader = val_loader
         model_solver.train_stage2(self.index, boost_index)
+        # 唤醒轮结束后，将resume置0
+        self.config.resume = 0
         # 更新模型
         self.model = model_solver.unet
     
@@ -82,10 +89,11 @@ class AdaBoost(object):
         :return: 无
         """
         init_flag = True
-        for boost_index in range(self.boost_times):
+        print('Start training from {} step.'.format(self.config.resume_boost_index))
+        for boost_index in range(self.config.resume_boost_index, self.boost_times):
             print("Boosting: {} step...".format(boost_index))
             # 更新样本权重
-            self.update_samples_weight(init_flag)
+            self.update_samples_weight(init_flag, boost_index-1)
             # 训练模型
             self.train_model(boost_index)
             # 更新分类误差率
@@ -93,8 +101,12 @@ class AdaBoost(object):
             # 更新基学习器的权重
             self.update_model_weight(boost_index)
             init_flag = False
+        # 保存最终的参数
+        with open('adaboost.pkl', 'wb') as f:
+            print('Saving models_weight and samples_weight...')
+            pickle.dump([self.models_weight, self.samples_weight], f) 
 
-    def update_samples_weight(self, init_flag=True):
+    def update_samples_weight(self, init_flag=True, boost_index=0):
         """更新样本权重
         """
         print('Updating samples weight...')
@@ -114,11 +126,13 @@ class AdaBoost(object):
                 augmentation_flag=False,
                 shuffle=False
                 )   
-            tbar = tqdm(train_loader)
             self.model.eval()
             # 计算规范化因子
             z_m = 0
             with torch.no_grad():
+                print('Calculating normalization factor...')
+                right_num = 0
+                tbar = tqdm(train_loader)
                 for sample_index, (image, mask, sample_weight) in enumerate(tbar):
                     image = image.cuda()
                     mask = mask.cuda()
@@ -130,10 +144,18 @@ class AdaBoost(object):
                     mask_flat = mask.view(mask.size(0), -1)
                     dice = self.criterion(pred_flat, mask_flat)
                     # 预测正确和预测错误的样本分开计算
-                    right_id = dice > 0.5
-                    z_m += (sample_weight[right_id] * torch.exp(-1 * self.models_weight[-1])).sum()
-                    z_m += (sample_weight[1 - right_id] * torch.exp(-1 * self.models_weight[-1] * -1)).sum()
+                    right_id = dice > 0.75
+                    z_m += (sample_weight[right_id] * torch.exp(-1 * self.models_weight[boost_index])).sum()
+                    z_m += (sample_weight[1 - right_id] * torch.exp(-1 * self.models_weight[boost_index] * -1)).sum()
+                    
+                    right_num += right_id.sum().item()
+                    descript = 'Right detection samples num:%d, z_m: %.5f' % (right_num, z_m)
+                    tbar.set_description(desc=descript)
+                print("Calculating samples weight...")                
+                right_num = 0
                 # 更新样本权重，一定要按照顺序更新，样本与其权重要相对应
+                seen_samples_num = 0
+                tbar = tqdm(train_loader)
                 for sample_index, (image, mask, sample_weight) in enumerate(tbar):
                     image = image.cuda()
                     mask = mask.cuda()
@@ -143,12 +165,17 @@ class AdaBoost(object):
                     pred_flat = (torch.sigmoid(pred_flat) > 0.5).float()
                     mask_flat = mask.view(mask.size(0), -1)
                     dice = self.criterion(pred_flat, mask_flat)
-                    right_id = dice > 0.5
-                    # 更新预测正确的样本的权重
-                    self.samples_weight[right_id] = self.samples_weight[right_id] / (z_m * torch.exp(-1 * self.models_weight[-1]))
-                    # 更新预测错误的样本的权重
-                    self.samples_weight[1 - right_id] = self.samples_weight[1 - right_id] / (z_m * torch.exp(-1 * self.models_weight[-1] * -1))
-    
+                    right_id = dice > 0.75
+                    sample_weight[right_id] = sample_weight[right_id] / (z_m * torch.exp(-1 * self.models_weight[boost_index]))
+                    sample_weight[1 - right_id] = sample_weight[1 - right_id] / (z_m * torch.exp(-1 * self.models_weight[boost_index] * -1))
+
+                    self.samples_weight[seen_samples_num : seen_samples_num + sample_weight.size(0)] = sample_weight
+                    seen_samples_num += sample_weight.size(0)
+                    
+                    right_num += right_id.sum().item()
+                    descript = 'right / seen_samples: %d / %d' % (right_num, seen_samples_num)
+                    tbar.set_description(desc=descript)
+
     def update_model_weight(self, boost_index):
         """更新基学习器的权重
         """
@@ -189,10 +216,13 @@ class AdaBoost(object):
                 pred_flat = (torch.sigmoid(pred_flat) > 0.5).float()
                 mask_flat = mask.view(mask.size(0), -1)
                 dice = self.criterion(pred_flat, mask_flat)
-                descript = 'Dice mean: %.5f' % dice.mean().item()
+                descript = ' Dice mean: %.5f' % dice.mean().item()
                 tbar.set_description(desc=descript)
 
-                sample_weight[dice > 0.5] = 0.0
+                sample_weight[dice > 0.75] = 0.0
                 loss_weight_sum += sample_weight.sum().item()
+                descript = 'Loss weight sum: %.5f' % loss_weight_sum + descript
+                tbar.set_description(desc=descript)
 
+        print('Current_error: %.4f'%loss_weight_sum)
         self.current_error = loss_weight_sum

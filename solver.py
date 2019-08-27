@@ -229,7 +229,7 @@ class Train(object):
                 # 保存到tensorboard，每一步存储一个
                 self.writer.add_scalar('Stage1_train_loss', loss.item(), global_step_before+i)
 
-                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
+                descript = "Stage1 train Loss: %.11f, lr: %s" % (loss.item(), params_groups_lr)
                 tbar.set_description(desc=descript)
             # 更新global_step_before为下次迭代做准备
             global_step_before += len(tbar)
@@ -357,7 +357,7 @@ class Train(object):
                 # 保存到tensorboard，每一步存储一个
                 self.writer.add_scalar('Stage2_train_loss', loss.item(), global_step_before+i)
 
-                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
+                descript = "Stage2 train Loss: %.11f, lr: %s" % (loss.item(), params_groups_lr)
                 tbar.set_description(desc=descript)
             # 更新global_step_before为下次迭代做准备
             global_step_before += len(tbar)

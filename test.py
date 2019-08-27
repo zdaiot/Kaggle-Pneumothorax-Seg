@@ -2,6 +2,7 @@ import os
 from glob import glob
 import numpy as np
 import time
+import pickle
 import torch
 import torchvision
 from PIL import Image
@@ -74,11 +75,12 @@ class Test(object):
 
         self.unet.to(self.device)
 
-    def test_model(self, threshold, stage, n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None):
+    def test_model(self, threshold, models_weight, stage, n_splits, boost_times, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None):
         """
         threshold: 阈值，高于这个阈值的置为1，否则置为0
+        models_weight: list，各个提升模型的权重
         stage: 测试第几阶段的结果
-        n_splits: 测试多少折的结果进行平均
+        n_splits: list, 测试哪几折的结果，平均
         test_best_model: 是否要使用最优模型测试，若不是的话，则取最新的模型测试
         less_than_sum: 预测图片中有预测出的正样本总和小于这个值时，则忽略所有
         """
@@ -88,30 +90,35 @@ class Test(object):
         sample_df = pd.read_csv(csv_path)
         preds = np.zeros([len(sample_df), self.image_size, self.image_size])
 
+        # 测试过的模型的数目
+        models_num = 0
         for fold in range(n_splits):
-            if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, fold))
-            else:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
-            self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
-            self.unet.eval()
-            
-            with torch.no_grad():
-                # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
-                for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
-                    file = row['ImageId']
-                    img_path = os.path.join(test_image_path, file.strip() + '.jpg')
-                    img = Image.open(img_path).convert('RGB')
-                    
-                    pred = self.tta(img)
-                    preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
-            # 如果取消注释，则只测试一个fold的
-            n_splits = 1
-            break
-
+            # 对每一轮的提升模型进行测试
+            for boost in range(boost_times):
+                if test_best_model:
+                    unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_{}_best.pth'.format(stage, fold, boost))
+                else:
+                    unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_{}.pth'.format(stage, fold, boost))
+                print("Fold: %d, Boost: %d Load weight from %s" % (fold, boost, unet_path))
+                self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
+                self.unet.eval()
+                
+                model_weight = models_weight[boost]
+                with torch.no_grad():
+                    # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
+                    for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
+                        file = row['ImageId']
+                        img_path = os.path.join(test_image_path, file.strip() + '.jpg')
+                        img = Image.open(img_path).convert('RGB')
+                        
+                        pred = self.tta(img)
+                        preds[index, ...] += model_weight * np.reshape(pred, (self.image_size, self.image_size))
+                # 如果取消注释，则只测试一个fold的
+                models_num += 1
+        print('%d models were tested.' % models_num)
         rle = []
         count_has_mask = 0
-        preds_average = preds/n_splits
+        preds_average = preds
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             file = row['ImageId']
 
@@ -211,14 +218,24 @@ if __name__ == "__main__":
     test_image_path = 'datasets/SIIM_data/test_images'
     model_name = 'hpcunet_resnet34'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
-    stage, n_splits = 2, 5
+    stage = 2
+    n_splits = [0]
+    boost_times = 5
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
-    threshold = 0.71
-    less_than_sum = 512
+    threshold = 0.67
+    less_than_sum = 2048
     test_best_mode = True
-    print("stage: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage, n_splits, threshold, less_than_sum))
+
+    print("stage: %d, n_splits: %d, boost_times: %d, threshold: %.3f, less_than_sum: %d" \
+        % (stage, len(n_splits), boost_times, threshold, less_than_sum))
+    
+    with open('adaboost.pkl', 'rb') as f:
+        models_weight = pickle.load(f)[0]
+        for model_weight_index, model_weight in enumerate(models_weight):
+            print('model_%d_weight: %.5f' % (model_weight_index, model_weight))
+    
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=threshold, stage=stage, n_splits=n_splits, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=threshold, models_weight=models_weight, stage=stage, n_splits=n_splits, boost_times=boost_times, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)

@@ -111,7 +111,7 @@ if __name__ == '__main__':
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
         parser.add_argument('--batch_size_stage2', type=int, default=10, help='batch size in the second stage')
-        parser.add_argument('--epoch_stage2', type=int, default=6, help='How many epoch in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=5, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
@@ -120,7 +120,8 @@ if __name__ == '__main__':
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set
-        parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
+        parser.add_argument('--resume', type=str, default='unet_resnet34_1_0_0_best.pth', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--resume_boost_index', type=int, default=0, help='rusume form which boost index.')
         parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121/hpcunet_resnet34')
