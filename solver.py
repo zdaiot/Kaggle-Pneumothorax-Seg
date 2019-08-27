@@ -418,6 +418,7 @@ class Train(object):
 
         # 第二阶段结束后直接进行第三个阶段，中间并没有暂停
         else:
+            print('start stage3 after stage2 directly!')
             self.start_epoch = 0
             self.max_dice = 0
 

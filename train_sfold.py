@@ -166,7 +166,7 @@ if __name__ == '__main__':
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
         parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
-        parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
+        parser.add_argument('--epoch_stage2', type=int, default=15, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
@@ -179,7 +179,7 @@ if __name__ == '__main__':
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set 
-        parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--resume', type=str, default='unet_resnet34_1_0_best.pth', help='if has value, must be the name of Weight file.')
         '''mode可选值 没有考虑各自阶段训练到一半重新加载的情况，因为学习率为余弦衰减，不可控 TODO
         train: 训练所有阶段, resume必须为空
         train_stage1: 只训练第一阶段, resume必须为空
@@ -190,7 +190,7 @@ if __name__ == '__main__':
         choose_threshold2: 只选第二阶段的阈值
         choose_threshold3: 只选第三阶段的阈值
         '''
-        parser.add_argument('--mode', type=str, default='train', \
+        parser.add_argument('--mode', type=str, default='train_stage23', \
             help='train/train_stage1/train_stage2/train_stage3/train_stage23/choose_threshold1/choose_threshold2/choose_threshold3.')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')
