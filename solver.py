@@ -20,6 +20,8 @@ from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
+# from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
+
 
 class Train(object):
     def __init__(self, config, train_loader, valid_loader):
@@ -33,40 +35,45 @@ class Train(object):
         self.img_ch = config.img_ch
         self.output_ch = config.output_ch
         self.criterion = SoftBCEDiceLoss(weight=[0.25, 0.75])
-        # self.criterion = torch.nn.BCEWithLogitsLoss()
+        # self.criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(50))
         self.criterion_stage2 = SoftBCEDiceLoss(weight=[0.25, 0.75])
+        self.criterion_stage3 = SoftBCEDiceLoss(weight=[0.25, 0.75])
         self.model_type = config.model_type
         self.t = config.t
 
         self.mode = config.mode
         self.resume = config.resume
-        self.num_epochs_decay = config.num_epochs_decay
 
         # Hyper-parameters
         self.lr = config.lr
-        self.start_epoch, self.max_dice = 0, 0
         self.lr_stage2 = config.lr_stage2
+        self.lr_stage3 = config.lr_stage3
+        self.start_epoch, self.max_dice = 0, 0
         self.weight_decay = config.weight_decay
+        self.weight_decay_stage2 = config.weight_decay
+        self.weight_decay_stage3 = config.weight_decay
 
         # save set
         self.save_path = config.save_path
-        if self.mode != 'choose_threshold':
+        if 'choose_threshold' not in self.mode:
             TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.datetime.now())
             self.writer = SummaryWriter(log_dir=self.save_path+'/'+TIMESTAMP)
 
         # 配置参数
-        self.two_stage = config.two_stage
         self.epoch_stage1 = config.epoch_stage1
         self.epoch_stage1_freeze = config.epoch_stage1_freeze
         self.epoch_stage2 = config.epoch_stage2
         self.epoch_stage2_accumulation = config.epoch_stage2_accumulation
         self.accumulation_steps = config.accumulation_steps
+        self.epoch_stage3 = config.epoch_stage3
+        self.epoch_stage3_accumulation = config.epoch_stage3_accumulation
 
         # 模型初始化
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.build_model()
 
     def build_model(self):
+        print("Using model: {}".format(self.model_type))
         """Build generator and discriminator."""
         if self.model_type == 'U_Net':
             self.unet = U_Net(img_ch=3, output_ch=self.output_ch)
@@ -90,6 +97,8 @@ class Train(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
+        # elif self.model_type == 'scSE_FPA_unet_resnet34':
+        #     self.unet = Res34Unetv5()
         
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)
@@ -102,6 +111,7 @@ class Train(object):
             self.unet = torch.nn.DataParallel(self.unet)
             self.criterion = self.criterion.cuda()
             self.criterion_stage2 = self.criterion_stage2.cuda()
+            self.criterion_stage3 = self.criterion_stage3.cuda()
         self.unet.to(self.device)
 
     def print_network(self, model, name):
@@ -151,7 +161,7 @@ class Train(object):
         # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-4}, {'params': self.unet.encoder.parameters(), 'lr': 1e-6},])
         self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr, weight_decay=self.weight_decay)
 
-        # 若训练到一半暂停了，则需要加载之前训练的参数，并加载之前学习率
+        # 若训练到一半暂停了，则需要加载之前训练的参数，并加载之前学习率 TODO:resume学习率没有接上，所以resume暂时无法使用
         if self.resume:
             self.load_checkpoint(load_optimizer=True)
             '''
@@ -162,12 +172,6 @@ class Train(object):
             '''
             self.optimizer.param_groups[0]['initial_lr'] = self.lr
             
-        '''学习率热重启，并且重启后的初始学习率相比之前有所降低
-        TODO
-        - 两个CosineAnnealingLR函数中的T_max参数
-        - 热重启后的初始学习率
-        - resume学习率没有接上，所以resume暂时无法使用
-        '''
         stage1_epoches = self.epoch_stage1 - self.start_epoch
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches+5)
         # 防止训练到一半暂停重新训练，日志被覆盖
@@ -177,6 +181,7 @@ class Train(object):
             epoch += 1
             self.unet.train(True)
             
+            # 学习率重启
             # if epoch == 30:
             #     self.optimizer.param_groups[0]['initial_lr'] = 0.0001
             #     lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 25)
@@ -202,7 +207,7 @@ class Train(object):
                 if loss_num > 1:
                     for loss_index, loss_item in enumerate(loss_set):
                         if loss_index > 0:
-                            loss_name = 'loss_%d' % loss_index
+                            loss_name = 'stage1_loss_%d' % loss_index
                             self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
                     loss = loss_set[0]
                 else:
@@ -262,7 +267,7 @@ class Train(object):
         # self.unet.apply(set_bn_eval)
 
         # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-5}, {'params': self.unet.encoder.parameters(), 'lr': 1e-7},])
-        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay)
+        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage2, weight_decay=self.weight_decay_stage2)
 
         # 加载的resume分为两种情况：之前没有训练第二个阶段，现在要加载第一个阶段的参数；第二个阶段训练了一半要继续训练
         if self.resume:
@@ -322,7 +327,7 @@ class Train(object):
                 if loss_num > 1:
                     for loss_index, loss_item in enumerate(loss_set):
                         if loss_index > 0:
-                            loss_name = 'loss_%d' % loss_index
+                            loss_name = 'stage2_loss_%d' % loss_index
                             self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
                     loss = loss_set[0]
                 else:
@@ -379,6 +384,137 @@ class Train(object):
 
             # 学习率衰减
             lr_scheduler.step()
+
+    # stage3, 接着stage2的训练，只训练有mask的样本
+    def train_stage3(self, index):
+        # # 冻结BN层， see https://zhuanlan.zhihu.com/p/65439075 and https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/discussion/100736591271 for more information
+        # def set_bn_eval(m):
+        #     classname = m.__class__.__name__
+        #     if classname.find('BatchNorm') != -1:
+        #         m.eval()
+        # self.unet.apply(set_bn_eval)
+
+        # self.optimizer = optim.Adam([{'params': self.unet.decoder.parameters(), 'lr': 1e-5}, {'params': self.unet.encoder.parameters(), 'lr': 1e-7},])
+        self.optimizer = optim.Adam(self.unet.module.parameters(), self.lr_stage3, weight_decay=self.weight_decay_stage3)
+
+        # 如果是 train_stage23，则resume只在第二阶段起作用
+        if self.mode == 'train_stage23':
+            self.resume = None
+        # 加载的resume分为两种情况：之前没有训练第三个阶段，现在要加载第二个阶段的参数；第三个阶段训练了一半要继续训练
+        if self.resume:
+            # 若第三个阶段训练一半，要重新加载 TODO
+            if self.resume.split('_')[2] == '3':
+                self.load_checkpoint(load_optimizer=True) # 当load_optimizer为True会重新加载学习率和优化器
+                '''
+                CosineAnnealingLR：若存在['initial_lr']，则从initial_lr开始衰减；
+                若不存在，则执行CosineAnnealingLR会在optimizer.param_groups中添加initial_lr键值，其值等于lr
+
+                重置初始学习率，在load_checkpoint中会加载优化器，但其中的initial_lr还是之前的，所以需要覆盖为self.lr，让其从self.lr衰减
+                '''
+                self.optimizer.param_groups[0]['initial_lr'] = self.lr
+
+            # 若第二阶段结束后没有直接进行第三个阶段，中间暂停了
+            elif self.resume.split('_')[2] == '2':
+                self.load_checkpoint(load_optimizer=False)
+                self.start_epoch = 0
+                self.max_dice = 0
+
+        # 第二阶段结束后直接进行第三个阶段，中间并没有暂停
+        else:
+            self.start_epoch = 0
+            self.max_dice = 0
+
+        # 防止训练到一半暂停重新训练，日志被覆盖
+        global_step_before = self.start_epoch*len(self.train_loader)
+
+        stage3_epoches = self.epoch_stage3 - self.start_epoch
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage3_epoches+5)
+
+        for epoch in range(self.start_epoch, self.epoch_stage3):
+            epoch += 1
+            self.unet.train(True)
+            epoch_loss = 0
+
+            self.reset_grad() # 梯度累加的时候需要使用
+            
+            tbar = tqdm.tqdm(self.train_loader)
+            for i, (images, masks) in enumerate(tbar):
+                # GT : Ground Truth
+                images = images.to(self.device)
+                masks = masks.to(self.device)
+                assert images.size(2) == 1024
+
+                # SR : Segmentation Result
+                net_output = self.unet(images)
+                net_output_flat = net_output.view(net_output.size(0), -1)
+                masks_flat = masks.view(masks.size(0), -1)
+                loss_set = self.criterion_stage3(net_output_flat, masks_flat)
+
+                try:
+                    loss_num = len(loss_set)
+                except:
+                    loss_num = 1
+                # 依据返回的损失个数分情况处理
+                if loss_num > 1:
+                    for loss_index, loss_item in enumerate(loss_set):
+                        if loss_index > 0:
+                            loss_name = 'stage3_loss_%d' % loss_index
+                            self.writer.add_scalar(loss_name, loss_item.item(), global_step_before + i)
+                    loss = loss_set[0]
+                else:
+                    loss = loss_set
+                epoch_loss += loss.item()
+
+                # Backprop + optimize, see https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20 for Accumulating Gradients
+                if epoch <= self.epoch_stage3 - self.epoch_stage3_accumulation:
+                    self.reset_grad()
+                    loss.backward()
+                    self.optimizer.step()
+                else:
+                    # loss = loss / self.accumulation_steps                # Normalize our loss (if averaged)
+                    loss.backward()                                      # Backward pass
+                    if (i+1) % self.accumulation_steps == 0:             # Wait for several backward steps
+                        self.optimizer.step()                            # Now we can do an optimizer step
+                        self.reset_grad()
+
+                params_groups_lr = str()
+                for group_ind, param_group in enumerate(self.optimizer.param_groups):
+                    params_groups_lr = params_groups_lr + 'params_group_%d' % (group_ind) + ': %.12f, ' % (param_group['lr'])
+
+                # 保存到tensorboard，每一步存储一个
+                self.writer.add_scalar('Stage3_train_loss', loss.item(), global_step_before+i)
+
+                descript = "Train Loss: %.7f, lr: %s" % (loss.item(), params_groups_lr)
+                tbar.set_description(desc=descript)
+            # 更新global_step_before为下次迭代做准备
+            global_step_before += len(tbar)
+
+            # Print the log info
+            print('Finish Stage3 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage3, epoch_loss/len(tbar)))
+            write_txt(self.save_path, 'Finish Stage3 Epoch [%d/%d], Average Loss: %.7f' % (epoch, self.epoch_stage3, epoch_loss/len(tbar)))
+
+            # 验证模型，保存权重，并保存日志
+            loss_mean, dice_mean = self.validation(stage=3)
+            if dice_mean > self.max_dice: 
+                is_best = True
+                self.max_dice = dice_mean
+            else: is_best = False
+            
+            self.lr = lr_scheduler.get_lr()            
+            state = {'epoch': epoch,
+                'state_dict': self.unet.module.state_dict(),
+                'max_dice': self.max_dice,
+                'optimizer' : self.optimizer.state_dict(),
+                'lr' : self.lr}
+            
+            self.save_checkpoint(state, 3, index, is_best)
+
+            self.writer.add_scalar('Stage3_val_loss', loss_mean, epoch)
+            self.writer.add_scalar('Stage3_val_dice', dice_mean, epoch)
+            self.writer.add_scalar('Stage3_lr', self.lr[0], epoch)
+
+            # 学习率衰减
+            lr_scheduler.step()
             
 
     def validation(self, stage=1):
@@ -391,6 +527,8 @@ class Train(object):
             criterion = self.criterion
         elif stage == 2:
             criterion = self.criterion_stage2
+        elif stage == 3:
+            criterion = self.criterion_stage3
         with torch.no_grad(): 
             for i, (images, masks) in enumerate(tbar):
                 images = images.to(self.device)

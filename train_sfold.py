@@ -22,10 +22,6 @@ else:
 
 def main(config):
     cudnn.benchmark = True
-    # 配置随机权重衰减，保存路径等
-    decay_ratio = random.random() * 0.8
-    decay_epoch = int((config.epoch_stage1+config.epoch_stage2) * decay_ratio)
-    config.num_epochs_decay = decay_epoch
 
     config.save_path = config.model_path + '/' + config.model_type
     if not os.path.exists(config.save_path):
@@ -56,10 +52,25 @@ def main(config):
         images_path, masks_path, masks_bool = dataset_static.mask_static_bool()
         with open('dataset_static.pkl', 'wb') as f:
             pickle.dump([images_path, masks_path, masks_bool], f)
+    
+    # 统计各样本是否有Mask
+    if os.path.exists('dataset_static_mask.pkl'):
+        print('Extract dataset static information form: dataset_static_mask.pkl.')
+        with open('dataset_static_mask.pkl', 'rb') as f:
+            static_mask = pickle.load(f)
+            images_path_mask, masks_path_mask, masks_bool_mask = static_mask[0], static_mask[1], static_mask[2]
+    else:
+        print('Calculate dataset with mask static information.')
+        # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
+        dataset_static_mask = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
+        images_path_mask, masks_path_mask, masks_bool_mask = dataset_static_mask.mask_static_bool_stage3()
+        with open('dataset_static_mask.pkl', 'wb') as f:
+            pickle.dump([images_path_mask, masks_path_mask, masks_bool_mask], f)
 
     result = {}
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
-    for index, (train_index, val_index) in enumerate(skf.split(images_path, masks_bool)):
+    split1, split2 = skf.split(images_path, masks_bool), skf.split(images_path_mask, masks_bool_mask)
+    for index, ((train_index, val_index), (train_index_mask, val_index_mask)) in enumerate(zip(split1, split2)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
         # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
         if index != 0:
@@ -70,46 +81,60 @@ def main(config):
         val_image = [images_path[x] for x in val_index]
         val_mask = [masks_path[x] for x in val_index]
 
+        train_image_mask = [images_path_mask[x] for x in train_index_mask]
+        train_mask_mask = [masks_path_mask[x] for x in train_index_mask]
+        val_image_mask = [images_path_mask[x] for x in val_index_mask]
+        val_mask_mask = [masks_path_mask[x] for x in val_index_mask]
+
         # 对于第一个阶段方法的处理
         train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage1,
                                         config.batch_size_stage1, config.num_workers, config.stage1_augmentation_flag, weights_sample=config.weight_sample)
         solver = Train(config, train_loader, val_loader)
         # 针对不同mode，在第一阶段的处理方式
-        if config.mode == 'train':
+        if config.mode == 'train' or config.mode == 'train_stage1':
             solver.train(index)
-        elif config.mode == 'train_stage2':
-            pass
-        else:
-            # 是否为两阶段法，若为两阶段法，则pass，否则选取阈值
-            if config.two_stage == False:
-                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
-                scores.append(score)
-                best_thrs.append(best_thr)
-                best_pixel_thrs.append(best_pixel_thr)
-                result[str(index)] = [best_thr, best_pixel_thr, score]
-            else:
-                pass
+        elif config.mode == 'choose_threshold1':
+            best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 1, index)), index)
+            scores.append(score)
+            best_thrs.append(best_thr)
+            best_pixel_thrs.append(best_pixel_thr)
+            result[str(index)] = [best_thr, best_pixel_thr, score]
+        del train_loader, val_loader
 
         # 对于第二个阶段的处理方法
-        if config.two_stage == True:
-            del train_loader, val_loader
-            train_loader_, val_loader_ = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
-                                        config.batch_size_stage2, config.num_workers, config.stage2_augmentation_flag, weights_sample=config.weight_sample)
-            # 更新类的训练集以及验证集
-            solver.train_loader, solver.val_loader = train_loader_, val_loader_
-            
-            # 针对不同mode，在第二阶段的处理方式
-            if config.mode == 'train' or config.mode == 'train_stage2':
-                solver.train_stage2(index)
-            else:
-                best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
-                scores.append(score)
-                best_thrs.append(best_thr)
-                best_pixel_thrs.append(best_pixel_thr)
-                result[str(index)] = [best_thr, best_pixel_thr, score]
+        train_loader_stage2, val_loader_stage2 = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
+                                    config.batch_size_stage2, config.num_workers, config.stage2_augmentation_flag, weights_sample=config.weight_sample)
+        # 更新类的训练集以及验证集
+        solver.train_loader, solver.val_loader = train_loader_stage2, val_loader_stage2
+        # 针对不同mode，在第二阶段的处理方式
+        if config.mode == 'train' or config.mode == 'train_stage2' or config.mode == 'train_stage23':
+            solver.train_stage2(index)
+        elif config.mode == 'choose_threshold2':
+            best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
+            scores.append(score)
+            best_thrs.append(best_thr)
+            best_pixel_thrs.append(best_pixel_thr)
+            result[str(index)] = [best_thr, best_pixel_thr, score]
+        del train_loader_stage2, val_loader_stage2
+
+        # 对于第三个阶段的处理方法
+        # 第三阶段和第二阶段使用的图片大小一致，最大batch_size一致
+        train_loader_stage3, val_loader_stage3 = get_loader(train_image_mask, train_mask_mask, val_image_mask, val_mask_mask, config.image_size_stage2,
+                                    config.batch_size_stage2, config.num_workers, config.stage3_augmentation_flag, weights_sample=config.weight_sample)
+        # 更新类的训练集以及验证集
+        solver.train_loader, solver.val_loader = train_loader_stage3, val_loader_stage3        
+        # 针对不同mode，在第三阶段的处理方式
+        if config.mode == 'train' or config.mode == 'train_stage3' or config.mode == 'train_stage23':
+            solver.train_stage3(index)
+        elif config.mode == 'choose_threshold3':
+            best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 3, index)), index)
+            scores.append(score)
+            best_thrs.append(best_thr)
+            best_pixel_thrs.append(best_pixel_thr)
+            result[str(index)] = [best_thr, best_pixel_thr, score]
 
     # 若为选阈值操作，则输出n_fold折验证集结果的平均值
-    if config.mode == 'choose_threshold':
+    if 'choose_threshold' in config.mode:
         score_mean = np.array(scores).mean()
         thr_mean = np.array(best_thrs).mean()
         pixel_thr_mean = np.array(best_pixel_thrs).mean()
@@ -131,40 +156,42 @@ if __name__ == '__main__':
     else:
         parser = argparse.ArgumentParser()
         '''
-        stage set，注意若当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减。其余参数以stage1的配置为准
-        当save_step为10时，epoch_stage1和epoch_stage2必须是10的整数
-        当前的resume在第一阶段只考虑已经训练了超过epoch_stage1_freeze的情况，当mode=traim_stage2时，resume必须有值
-        
-        若第一阶段和第二阶段均训练，则two_stage为true，并设置相应的epoch_stage1、epoch_stage2，mode设置为train
-        若只训练第一阶段，则two_stage改为False，并设置epoch_stage2=0，mode设置为train
-        若只训练第二阶段，则two_stage为true，并设置相应的resume权重名称，mode设置为train_stage2
-        训练过程中断了，则设置相应的resume权重名称
-        
-        若选第一阶段的阈值，则mode设置为choose_threshold，two_stage设置为False
-        若选第二阶段的阈值，则mode设置为choose_threshold，two_stage设置为True
-
         第一阶段为768，第二阶段为1024，unet_resnet34时各个电脑可以设置的最大batch size
-        zdaiot:10,6 z840:12,6 mxq:20, 10
+        zdaiot:10,6 z840:12,6 mxq:20,10
         '''
-        parser.add_argument('--two_stage', type=bool, default=True, help='if true, use two_stage method')
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=10, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=10, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=20, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
 
+        parser.add_argument('--epoch_stage3', type=int, default=10, help='How many epoch in the third stage')
+        parser.add_argument('--epoch_stage3_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the third stage')
+
         parser.add_argument('--stage1_augmentation_flag', type=bool, default=True, help='if true, use augmentation method in stage1 train set')
         parser.add_argument('--stage2_augmentation_flag', type=bool, default=True, help='if true, use augmentation method in stage2 train set')
+        parser.add_argument('--stage3_augmentation_flag', type=bool, default=True, help='if true, use augmentation method in stage3 train set')
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
-        # model set
-        parser.add_argument('--resume', type=str, default=0, help='if has value, must be the name of Weight file.')
-        parser.add_argument('--mode', type=str, default='train', help='train/train_stage2/choose_threshold. if train_stage2, will train stage2 only and resume cannot empty')
+        # model set 
+        parser.add_argument('--resume', type=str, default='unet_resnet34_2_0_best.pth', help='if has value, must be the name of Weight file.')
+        '''mode可选值 没有考虑各自阶段训练到一半重新加载的情况，因为学习率为余弦衰减，不可控 TODO
+        train: 训练所有阶段, resume必须为空
+        train_stage1: 只训练第一阶段, resume必须为空
+        train_stage2: 只训练第二阶段，resume不能为空
+        train_stage3: 只训练第三阶段，resume不能为空
+        train_stage23: 只训练第二和第三阶段，resume不能为空
+        choose_threshold1: 只选第一阶段的阈值
+        choose_threshold2: 只选第二阶段的阈值
+        choose_threshold3: 只选第三阶段的阈值
+        '''
+        parser.add_argument('--mode', type=str, default='train_stage2', \
+            help='train/train_stage1/train_stage2/train_stage3/train_stage23/choose_threshold1/choose_threshold2/choose_threshold3.')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')
 
@@ -172,10 +199,10 @@ if __name__ == '__main__':
         parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
         parser.add_argument('--img_ch', type=int, default=3)
         parser.add_argument('--output_ch', type=int, default=1)
-        parser.add_argument('--num_epochs_decay', type=int, default=70) # TODO
         parser.add_argument('--num_workers', type=int, default=8)
         parser.add_argument('--lr', type=float, default=2e-4, help='init lr in stage1')
         parser.add_argument('--lr_stage2', type=float, default=5e-6, help='init lr in stage2')
+        parser.add_argument('--lr_stage3', type=float, default=1e-7, help='init lr in stage3')
         parser.add_argument('--weight_decay', type=float, default=0, help='weight_decay in optimizer')
         
         # dataset 
@@ -187,8 +214,9 @@ if __name__ == '__main__':
 
         config = parser.parse_args()
         # config = {k: v for k, v in args._get_kwargs()}
-    if config.two_stage == False and config.mode != 'choose_threshold':
-        assert config.epoch_stage2 == 0,'当two_stage等于False的时候，epoch_stage2必须等于0，否则会影响到学习率衰减'
-    if config.mode == 'train_stage2':
+
+    if config.mode == 'train_stage2' or config.mode == 'train_stage3' or config.mode == 'train_stage23':
         assert config.resume != ''
+    elif config.mode == 'train' or config.mode == 'train_stage1':
+        assert config.resume == ''
     main(config)

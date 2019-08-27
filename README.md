@@ -51,12 +51,20 @@ I think this error means that you have two tensorboards installed so the plugin 
 - [x] datasets_statics and choose less than sum
 - [x] adapt to torchvison0.2.0, tensorboard
 - [x] different Learning rates between encoder and decoder in stage2 (not well)
-- [ ] using lovasz loss in stage2 (this loss can be used to finetune model)
-- [ ] replace upsample (interplotation) with transpose convolution
-- [ ] using octave convolution in unet's decoder
-- [ ] resnet34->resnet50 (a wider model can work better with bigger resolution)
-- [ ] move noise form augmentation
-- [ ] Unet with Attention
+- [x] freeze BN in stage2 (not well)
+- [x] using lovasz loss in stage2 (this loss can be used to finetune model) (not well)
+- [x] replace upsample (interplotation) with transpose convolution (not well)
+- [x] using octave convolution in unet's decoder (not well)
+- [x] resnet34->resnet50 (a wider model can work better with bigger resolution) (not well)
+- [x] move noise form augmentation (not well)
+- [x] Unet with Attention (not test, the model is too big, so that the batch size is too small)
+- [x] change from 5 flod to 10 fold (not well)
+- [x] hypercolumn unet (not well)
+- [x] Dataset expansion (not well)
+- [x] Data expansion is used only in the 1/3/10 epoch in the first stage (not well)
+- [x] deeplabv3+ (not work)
+- [x] Recitified Adam(Radams) (not work)
+- [x] three stage set: Load the weights of the second phase and train only on masked datasets(matters a lot，from 0.8691 to 0.8741)
 - [ ] the dice coefficient is unstale in val set
 
 ## Dataset
@@ -93,8 +101,10 @@ The difference between solver_freeze.py and solver.py are:
 - the former considers freezing the encoding part in the first stage, while the latter does not.
 
 Please note that
-- solver_freeze.py in both main.py and train_sfold.py are only work for pretrained unet_resnet34. 
-- solver.py in both main.py and train_sfold.py are work for all model
+- solver_freeze.py in both main.py and train_sfold.py are only work for pretrained unet_resnet34.
+- solver.py in both main.py and train_sfold.py are work for all model.
+- if you use deeplabv3+ model, please add drop_last=True to all DataLoader functions in datasets/siim.py.
+- Solver_freeze.py and main.py have stopped updating. There is no guarantee that it will be available.
   
 ## Tensorboard
 ### different event files
@@ -173,6 +183,7 @@ tensorboard --logdir=run1
 |ResNet34(New)/No accumulation|10/6|1024|w/|w/ 0.4CLAHE self|CosineAnnealingLR(2e-4/5e-6)|bce+dice+weight|0.75|1024|TTA/None|217|0.8575|
 |ResNet34(new)/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6)|bce|0.45|1024|TTA/None|236|0.8570|
 |ResNet34/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6)|bce|0.36|768|TTA/None|254|0.8555|
+|ResNet34(New)/No accumulation/three stage|10/6/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6/1e-7)|bce+dice+weight|0.67|2048|TTA/None|206|**0.8741**|
 
 ## Experiment record
 |backbone|batch_size|image_size|pretrained|data proprecess|lr|weight_decay|score|
@@ -184,3 +195,4 @@ tensorboard --logdir=run1
 * 0.8446: fixed test code, used resize(1024)
 * 0.8648: used more large resolution (516->768), and average ensemble (little)
 * 0.8691: bce+dice+weight (matters a lot/1.21); TTA (matters little); In the first stage, the epoch was reduced from 60 to 40, and the learning rate was reduced to 0 at the 50th epoch. The second stage of learning is adjusted to 5e-6 (matters a lot); Change the data preprocessing mode, the CLAHE probability is changed to 0.4, the vertical flip is removed, the rotation angle is reduced, and the center cutting is added.
+* 0.8741: three stage set: Load the weights of the second phase and train only on masked datasets.

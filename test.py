@@ -24,6 +24,7 @@ from albumentations import CLAHE
 import json
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
+# from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
 
 
 class Test(object):
@@ -58,6 +59,8 @@ class Test(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
+        # elif self.model_type == 'scSE_FPA_unet_resnet34':
+        #     self.unet = Res34Unetv5()
 
         elif self.model_type == 'pspnet_resnet34':
             self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)
@@ -71,25 +74,29 @@ class Test(object):
 
         self.unet.to(self.device)
 
-    def test_model(self, threshold, stage, n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None):
+    def test_model(self, threshold, stage_cla, stage_seg, n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None):
         """
         threshold: 阈值，高于这个阈值的置为1，否则置为0
-        stage: 测试第几阶段的结果
+        stage_cla: 第几阶段的权重作为分类结果
+        stage_seg: 第几阶段的权重作为分割结果
         n_splits: 测试多少折的结果进行平均
         test_best_model: 是否要使用最优模型测试，若不是的话，则取最新的模型测试
         less_than_sum: 预测图片中有预测出的正样本总和小于这个值时，则忽略所有
         """
-        self.build_model()
 
         # 对于每一折加载模型，对所有测试集测试，并取平均
         sample_df = pd.read_csv(csv_path)
-        preds = np.zeros([len(sample_df), self.image_size, self.image_size])
+        # preds_cla存放模型的分类结果，而preds存放模型的分割结果，其中分割模型默认为1024的分辨率
+        preds_cla, preds = np.zeros([len(sample_df), self.image_size, self.image_size]), np.zeros([len(sample_df), 1024, 1024])
 
         for fold in range(n_splits):
+            # 加载分类模型，进行测试
+            self.unet = None
+            self.build_model()
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage, 0))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_cla, 0))
             else:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage, fold))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage_cla, fold))
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
             self.unet.eval()
             
@@ -101,7 +108,38 @@ class Test(object):
                     img = Image.open(img_path).convert('RGB')
                     
                     pred = self.tta(img)
+                    pred = cv2.resize(pred,(1024, 1024))
+
+                    # 首先经过阈值和像素阈值，判断该图像中是否有掩模
+                    pred = np.where(pred>threshold, 1, 0)
+                    if np.sum(pred) < less_than_sum:
+                        pred[:] = 0
+                    preds_cla[index, ...] = pred
+
+            # 加载分割模型，进行测试
+            self.unet = None
+            self.build_model()
+            if test_best_model:
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_seg, 0))
+            else:
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage_seg, fold))
+            self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
+            self.unet.eval()
+
+            with torch.no_grad():
+                # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
+                for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
+                    file = row['ImageId']
+                    pred = preds_cla[index, ...]
+                    # 如果有掩膜的话，加载分割模型进行测试
+                    if np.sum(pred) > 0:
+                        img_path = os.path.join(test_image_path, file.strip() + '.jpg')
+                        img = Image.open(img_path).convert('RGB')
+                        
+                        pred = self.tta(img)
+
                     preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
+
             # 如果取消注释，则只测试一个fold的
             n_splits = 1
             break
@@ -115,8 +153,6 @@ class Test(object):
             pred = cv2.resize(preds_average[index,...],(1024, 1024))
             pred = np.where(pred>threshold, 1, 0)
 
-            if np.sum(pred) < less_than_sum:
-                pred[:] = 0
             encoding = mask_to_rle(pred.T, 1024, 1024)
             if encoding == ' ':
                 rle.append([file.strip(), '-1'])
@@ -194,7 +230,7 @@ class Test(object):
         preds += original_pred
 
         # 求平均
-        pred = preds / 3
+        pred = preds / 3.0
 
         return pred
 
@@ -206,16 +242,17 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'deeplabv3plus'
-    # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
-    stage, n_splits = 2, 5
-    if stage == 1:
+    model_name = 'unet_resnet34'
+    # stage_cla表示使用第几阶段的权重作为分类模型，stage_seg表示使用第几阶段的权重作为分割模型，对应不同的image_size，index表示为交叉验证的第几个
+    # image_size TODO
+    stage_cla, stage_seg, n_splits = 2, 3, 5
+    if stage_cla == 1:
         image_size = 768
-    elif stage == 2:
+    elif stage_cla == 2:
         image_size = 1024
-    threshold = 0.75
-    less_than_sum = 768
+    threshold = 0.67
+    less_than_sum = 2048
     test_best_mode = True
-    print("stage: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage, n_splits, threshold, less_than_sum))
+    print("stage_cla: %d, stage_seg: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage_cla, stage_seg, n_splits, threshold, less_than_sum))
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=threshold, stage=stage, n_splits=n_splits, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(threshold=threshold, stage_cla=stage_cla, stage_seg=stage_seg, n_splits=n_splits, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)

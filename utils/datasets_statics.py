@@ -32,9 +32,7 @@ class DatasetsStatic(object):
         if self.sort_flag:
             image_names = sorted(image_names)
         
-        images_path = list()
-        masks_path = list()
-        masks_bool = list()
+        images_path, masks_path, masks_bool = list(), list(), list()
         for index, image_name in enumerate(image_names):
             image_path = os.path.join(self.image_folder, image_name)
             mask_name = image_name.replace('jpg', 'png')
@@ -46,6 +44,34 @@ class DatasetsStatic(object):
             images_path.append(image_path)
             masks_path.append(mask_path)
             masks_bool.append(mask_flag)
+        
+        return images_path, masks_path, masks_bool
+
+    def mask_static_bool_stage3(self):
+        """统计数据集中的每一个样本是否存在掩膜
+        
+        Return:
+            images_path: 所有有掩模样本的路径
+            masks_path: 所有有掩模样本对应的掩膜的路径
+            masks_bool: 所有有掩模样本是否有掩膜
+        """
+        image_names = os.listdir(self.image_folder)
+        if self.sort_flag:
+            image_names = sorted(image_names)
+        
+        images_path, masks_path, masks_bool = list(), list(), list()
+        for index, image_name in enumerate(image_names):
+            image_path = os.path.join(self.image_folder, image_name)
+            mask_name = image_name.replace('jpg', 'png')
+            mask_path = os.path.join(self.mask_folder, mask_name)
+
+            mask_pixes_num = self.cal_mask_pixes(mask_path)
+            mask_flag = bool(mask_pixes_num)
+
+            if mask_flag:
+                images_path.append(image_path)
+                masks_path.append(mask_path)
+                masks_bool.append(mask_flag)
         
         return images_path, masks_path, masks_bool
 
@@ -105,7 +131,8 @@ class DatasetsStatic(object):
             masks_bool.append(bool(mask_pixes_num))
         positive_sum = np.sum(masks_pixes_num)
         negative_sum = len(image_names)*1024*1024 - positive_sum
-        return positive_sum, negative_sum, negative_sum/positive_sum, sum(masks_bool)
+        negative_sum_mask = sum(masks_bool)*1024*1024 - positive_sum
+        return positive_sum, negative_sum, negative_sum/positive_sum, sum(masks_bool), negative_sum_mask/positive_sum
 
     def mask_pixes_average_num(self):
         """统计每个样本所包含的掩膜的像素的平均数目
@@ -188,7 +215,7 @@ class DatasetsStatic(object):
 
 
 if __name__ == "__main__":
-    dataset_root = 'datasets/SIIM_AUG'
+    dataset_root = 'datasets/SIIM_data'
     images_folder = 'train_images'
     masks_folder = 'train_mask'
     ds = DatasetsStatic(dataset_root, images_folder, masks_folder)
@@ -197,11 +224,9 @@ if __name__ == "__main__":
     # for i in masks_level:
     #     print(i)
 
-    
-    ds.mask_num_static()
-    average_num = ds.mask_pixes_average_num()
-    print('average num: %d'%(average_num))
+    # ds.mask_num_static()
+    # average_num = ds.mask_pixes_average_num()
+    # print('average num: %d'%(average_num))
 
-    positive_sum, negative_sum, ratio, masks_sum = ds.statistical_pixel()
-    print('positive_sum:{}, negative_sum:{}, ratio:{}, mask_sum:{}'.format(positive_sum, negative_sum, ratio, masks_sum))
-    pass
+    positive_sum, negative_sum, ratio_all, masks_sum, ratio_mask = ds.statistical_pixel()
+    print('positive_sum:{}, negative_sum:{}, ratio_all:{}, mask_sum:{}, ratio_mask:{}'.format(positive_sum, negative_sum, ratio_all, masks_sum, ratio_mask))
