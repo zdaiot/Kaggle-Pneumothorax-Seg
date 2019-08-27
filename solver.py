@@ -20,7 +20,6 @@ from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
-# from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
 
 
 class Train(object):
@@ -97,8 +96,6 @@ class Train(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
-        # elif self.model_type == 'scSE_FPA_unet_resnet34':
-        #     self.unet = Res34Unetv5()
         
         elif self.model_type == 'linknet':
             self.unet = LinkNet34(num_classes=self.output_ch)

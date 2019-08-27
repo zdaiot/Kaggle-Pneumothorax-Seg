@@ -24,7 +24,6 @@ from albumentations import CLAHE
 import json
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
-# from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
 
 
 class Test(object):
@@ -59,8 +58,6 @@ class Test(object):
             self.unet = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
         elif self.model_type == 'unet_resnet34_oct':
             self.unet = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
-        # elif self.model_type == 'scSE_FPA_unet_resnet34':
-        #     self.unet = Res34Unetv5()
 
         elif self.model_type == 'pspnet_resnet34':
             self.unet = smp.PSPNet('resnet34', encoder_weights='imagenet', classes=1, activation=None)

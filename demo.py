@@ -15,7 +15,6 @@ from albumentations import CLAHE
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
-from models.scSE_FPA_unet.unet_model import Res34Unetv3, Res34Unetv4, Res34Unetv5
 
 
 def detect(model, mean, std, image_path, input_size=224, threshold=0.6, cuda=True):
@@ -82,8 +81,6 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
         model = Unet_t('resnet34', encoder_weights='imagenet', activation=None, use_ConvTranspose2d=True)
     elif model_name == 'unet_resnet34_oct':
         model = OctaveUnet('resnet34', encoder_weights='imagenet', activation=None)
-    elif model_name == 'scSE_FPA_unet_resnet34':
-        model = Res34Unetv5()
     else:
         raise ValueError('The model should be one of [Unet/unet_resnet34/]')
     
