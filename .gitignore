@@ -8,5 +8,6 @@ datasets/SIIM_data/*
 datasets/SIIM_AUG/*
 submission.csv
 dataset_static.pkl
+dataset_static_mask.pkl
 nohup.out
 run.sh
