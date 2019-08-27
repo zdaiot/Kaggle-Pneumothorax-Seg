@@ -71,14 +71,32 @@ class Test(object):
 
         self.unet.to(self.device)
 
-    def test_model(self, threshold, stage_cla, stage_seg, n_splits, test_best_model=True, less_than_sum=2048*2, csv_path=None, test_image_path=None):
+    def test_model(
+        self, 
+        thresholds_classify, 
+        thresholds_seg, 
+        average_threshold,
+        stage_cla, 
+        stage_seg, 
+        n_splits, 
+        test_best_model=True, 
+        less_than_sum=2048*2,
+        seg_average_vote=True, 
+        csv_path=None, 
+        test_image_path=None
+        ):
         """
-        threshold: 阈值，高于这个阈值的置为1，否则置为0
-        stage_cla: 第几阶段的权重作为分类结果
-        stage_seg: 第几阶段的权重作为分割结果
-        n_splits: 测试多少折的结果进行平均
-        test_best_model: 是否要使用最优模型测试，若不是的话，则取最新的模型测试
-        less_than_sum: 预测图片中有预测出的正样本总和小于这个值时，则忽略所有
+
+        Args:
+            thresholds_classify: list, 各个分类模型的阈值，高于这个阈值的置为1，否则置为0
+            thresholds_seg: list，各个分割模型的阈值
+            average_threshold: 分割后使用平均策略时所使用的平均阈值
+            stage_cla: 第几阶段的权重作为分类结果
+            stage_seg: 第几阶段的权重作为分割结果
+            n_splits: list, 测试哪几折的结果进行平均
+            test_best_model: 是否要使用最优模型测试，若不是的话，则取最新的模型测试
+            less_than_sum: list, 预测图片中有预测出的正样本总和小于这个值时，则忽略所有
+            seg_average_vote: bool，True：平均，False：投票
         """
 
         # 对于每一折加载模型，对所有测试集测试，并取平均
@@ -86,14 +104,15 @@ class Test(object):
         # preds_cla存放模型的分类结果，而preds存放模型的分割结果，其中分割模型默认为1024的分辨率
         preds_cla, preds = np.zeros([len(sample_df), self.image_size, self.image_size]), np.zeros([len(sample_df), 1024, 1024])
 
-        for fold in range(n_splits):
+        for fold in n_splits:
             # 加载分类模型，进行测试
             self.unet = None
             self.build_model()
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_cla, 0))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_cla, fold))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage_cla, fold))
+            print("Load classify weight from %s" % unet_path)
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
             self.unet.eval()
             
@@ -108,8 +127,8 @@ class Test(object):
                     pred = cv2.resize(pred,(1024, 1024))
 
                     # 首先经过阈值和像素阈值，判断该图像中是否有掩模
-                    pred = np.where(pred>threshold, 1, 0)
-                    if np.sum(pred) < less_than_sum:
+                    pred = np.where(pred > thresholds_classify[fold], 1, 0)
+                    if np.sum(pred) < less_than_sum[fold]:
                         pred[:] = 0
                     preds_cla[index, ...] = pred
 
@@ -117,9 +136,10 @@ class Test(object):
             self.unet = None
             self.build_model()
             if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_seg, 0))
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_seg, fold))
             else:
                 unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage_seg, fold))
+            print('Load segmentation weight from %s.' % unet_path)
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
             self.unet.eval()
 
@@ -134,21 +154,29 @@ class Test(object):
                         img = Image.open(img_path).convert('RGB')
                         
                         pred = self.tta(img)
-
+                        # 进行阈值处理
+                        if not seg_average_vote:
+                            pred = np.where(pred > thresholds_seg[fold], 1, 0)
                     preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
-
-            # 如果取消注释，则只测试一个fold的
-            n_splits = 1
-            break
+        
+        if not seg_average_vote:
+            vote_model_num = len(n_splits)
+            vote_ticket = round(vote_model_num / 2.0)
+            print("Using voting strategy, Ticket / Vote models: %d / %d" % (vote_ticket, vote_model_num))
+        else:
+            print('Using average strategy.')
+            preds = preds / len(n_splits)
 
         rle = []
         count_has_mask = 0
-        preds_average = preds/n_splits
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             file = row['ImageId']
 
-            pred = cv2.resize(preds_average[index,...],(1024, 1024))
-            pred = np.where(pred>threshold, 1, 0)
+            pred = cv2.resize(preds[index,...],(1024, 1024))
+            if not seg_average_vote:
+                pred = np.where(pred > vote_ticket, 1, 0)
+            else:
+                pred = np.where(pred > average_threshold, 1, 0)
 
             encoding = mask_to_rle(pred.T, 1024, 1024)
             if encoding == ' ':
@@ -242,16 +270,44 @@ if __name__ == "__main__":
     model_name = 'unet_resnet34'
     # stage_cla表示使用第几阶段的权重作为分类模型，stage_seg表示使用第几阶段的权重作为分割模型，对应不同的image_size，index表示为交叉验证的第几个
     # image_size TODO
-    stage_cla, stage_seg, n_splits = 2, 3, 5
+    stage_cla, stage_seg = 2, 3
+    
     if stage_cla == 1:
         image_size = 768
     elif stage_cla == 2:
         image_size = 1024
+    
     with open('checkpoints/'+model_name+'/result.json', 'r', encoding='utf-8') as json_file:
         config = json.load(json_file)
     
-    threshold, less_than_sum = config['mean'][0], config['mean'][1]
+    n_splits = [0, 1, 2, 3, 4]
+    thresholds_classify = []
+    thresholds_seg = []
+    less_than_sum = []
+    seg_average_vote = True
+    average_threshold = 0.67
     test_best_mode = True
-    print("stage_cla: %d, stage_seg: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage_cla, stage_seg, n_splits, threshold, less_than_sum))
+    
+    print("stage_cla: %d, stage_seg: %d" % (stage_cla, stage_seg))
+    print('test fold: ', n_splits)
+    print('thresholds_classify: ', thresholds_classify)
+    if seg_average_vote:
+        print('Using average stategy, average_threshold: %f' % average_threshold)
+    else:
+        print('Using vating strategy, thresholds_seg: ', thresholds_seg)
+    print('less_than_sum: ', less_than_sum)
+
     solver = Test(model_name, image_size, mean, std)
-    solver.test_model(threshold=threshold, stage_cla=stage_cla, stage_seg=stage_seg, n_splits=n_splits, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)
+    solver.test_model(
+        thresholds_classify=thresholds_classify,
+        thresholds_seg=thresholds_seg,
+        average_threshold=average_threshold, 
+        stage_cla=stage_cla,
+        stage_seg=stage_seg, 
+        n_splits=n_splits, 
+        test_best_model=test_best_mode, 
+        less_than_sum=less_than_sum,
+        seg_average_vote=seg_average_vote, 
+        csv_path=csv_path, 
+        test_image_path=test_image_path
+        )
