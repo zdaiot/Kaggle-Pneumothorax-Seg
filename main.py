@@ -92,7 +92,7 @@ def main(config):
             train_loader_, val_loader_ = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
                                         config.batch_size_stage2, config.num_workers, config.augmentation_flag, weights_sample=config.weight_sample)
             # 更新类的训练集以及验证集
-            solver.train_loader, solver.val_loader = train_loader_, val_loader_
+            solver.train_loader, solver.valid_loader = train_loader_, val_loader_
             
             # 针对不同mode，在第二阶段的处理方式
             if config.mode == 'train' or config.mode == 'train_stage2':
