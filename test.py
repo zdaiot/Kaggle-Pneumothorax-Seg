@@ -277,15 +277,20 @@ if __name__ == "__main__":
     elif stage_cla == 2:
         image_size = 1024
     
-    with open('checkpoints/'+model_name+'/result.json', 'r', encoding='utf-8') as json_file:
-        config = json.load(json_file)
+    with open('checkpoints/'+model_name+'/result_stage2.json', 'r', encoding='utf-8') as json_file:
+        config_cla = json.load(json_file)
+    
+    with open('checkpoints/'+model_name+'/result_stage3.json', 'r', encoding='utf-8') as json_file:
+        config_seg = json.load(json_file)
     
     n_splits = [0, 1, 2, 3, 4]
-    thresholds_classify = []
-    thresholds_seg = []
-    less_than_sum = []
+    thresholds_classify, thresholds_seg, less_than_sum = [], [], []
+    for x in n_splits:
+        thresholds_classify.append(config_cla[str(x)][0])
+        less_than_sum.append(config_cla[str(x)][1])
+        thresholds_seg.append(config_seg[str(x)][0])
     seg_average_vote = True
-    average_threshold = 0.67
+    average_threshold = config_seg['mean'][0]
     test_best_mode = True
     
     print("stage_cla: %d, stage_seg: %d" % (stage_cla, stage_seg))

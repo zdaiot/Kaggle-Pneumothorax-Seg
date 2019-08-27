@@ -73,7 +73,7 @@ def main(config):
     for index, ((train_index, val_index), (train_index_mask, val_index_mask)) in enumerate(zip(split1, split2)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
         # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
-        if index != 0:
+        if index != 2:
             print("Fold {} passed".format(index))
             continue
         train_image = [images_path[x] for x in train_index]
@@ -141,7 +141,7 @@ def main(config):
         print('score_mean:{}, thr_mean:{}, pixel_thr_mean:{}'.format(score_mean, thr_mean, pixel_thr_mean))
         result['mean'] = [float(thr_mean), float(pixel_thr_mean), float(score_mean)]
 
-        with codecs.open(config.save_path + '/result.json', 'w', "utf-8") as json_file:
+        with codecs.open(config.save_path + '/result_stage{}.json'.format(config.mode[-1]), 'w', "utf-8") as json_file:
             json.dump(result, json_file, ensure_ascii=False)
         print('save the result')
 
@@ -179,7 +179,7 @@ if __name__ == '__main__':
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set 
-        parser.add_argument('--resume', type=str, default='unet_resnet34_1_0_best.pth', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--resume', type=str, default='unet_resnet34_1_2_best.pth', help='if has value, must be the name of Weight file.')
         '''mode可选值 没有考虑各自阶段训练到一半重新加载的情况，因为学习率为余弦衰减，不可控 TODO
         train: 训练所有阶段, resume必须为空
         train_stage1: 只训练第一阶段, resume必须为空
