@@ -247,8 +247,10 @@ if __name__ == "__main__":
         image_size = 768
     elif stage_cla == 2:
         image_size = 1024
-    threshold = 0.67
-    less_than_sum = 2048
+    with open('checkpoints/'+model_name+'/result.json', 'r', encoding='utf-8') as json_file:
+        config = json.load(json_file)
+    
+    threshold, less_than_sum = config['mean'][0], config['mean'][1]
     test_best_mode = True
     print("stage_cla: %d, stage_seg: %d, n_splits: %d, threshold: %.3f, less_than_sum: %d"%(stage_cla, stage_seg, n_splits, threshold, less_than_sum))
     solver = Test(model_name, image_size, mean, std)
