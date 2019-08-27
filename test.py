@@ -92,7 +92,7 @@ class Test(object):
 
         # 测试过的模型的数目
         models_num = 0
-        for fold in range(n_splits):
+        for fold in n_splits:
             # 对每一轮的提升模型进行测试
             for boost in range(boost_times):
                 if test_best_model:
@@ -103,7 +103,7 @@ class Test(object):
                 self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
                 self.unet.eval()
                 
-                model_weight = models_weight[boost]
+                model_weight = models_weight[boost].item()
                 with torch.no_grad():
                     # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
                     for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
     csv_path = './submission.csv' 
     test_image_path = 'datasets/SIIM_data/test_images'
-    model_name = 'hpcunet_resnet34'
+    model_name = 'unet_resnet34'
     # stage表示测试第几阶段的代码，对应不同的image_size，index表示为交叉验证的第几个
     stage = 2
     n_splits = [0]
@@ -232,10 +232,15 @@ if __name__ == "__main__":
     print("stage: %d, n_splits: %d, boost_times: %d, threshold: %.3f, less_than_sum: %d" \
         % (stage, len(n_splits), boost_times, threshold, less_than_sum))
     
+    models_weight_sum = 0
     with open('adaboost.pkl', 'rb') as f:
         models_weight = pickle.load(f)[0]
         for model_weight_index, model_weight in enumerate(models_weight):
-            print('model_%d_weight: %.5f' % (model_weight_index, model_weight))
-    
+            models_weight_sum += model_weight
+        
+        for model_weight_index, model_weight in enumerate(models_weight):
+            models_weight[model_weight_index] = model_weight / models_weight_sum
+            print('model_%d_weight: %.5f' % (model_weight_index, models_weight[model_weight_index]))
+
     solver = Test(model_name, image_size, mean, std)
     solver.test_model(threshold=threshold, models_weight=models_weight, stage=stage, n_splits=n_splits, boost_times=boost_times, test_best_model=test_best_mode, less_than_sum=less_than_sum, csv_path=csv_path, test_image_path=test_image_path)
