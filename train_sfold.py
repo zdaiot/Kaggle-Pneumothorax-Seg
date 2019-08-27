@@ -105,7 +105,7 @@ def main(config):
         train_loader_stage2, val_loader_stage2 = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
                                     config.batch_size_stage2, config.num_workers, config.stage2_augmentation_flag, weights_sample=config.weight_sample)
         # 更新类的训练集以及验证集
-        solver.train_loader, solver.val_loader = train_loader_stage2, val_loader_stage2
+        solver.train_loader, solver.valid_loader = train_loader_stage2, val_loader_stage2
         # 针对不同mode，在第二阶段的处理方式
         if config.mode == 'train' or config.mode == 'train_stage2' or config.mode == 'train_stage23':
             solver.train_stage2(index)
@@ -122,7 +122,7 @@ def main(config):
         train_loader_stage3, val_loader_stage3 = get_loader(train_image_mask, train_mask_mask, val_image_mask, val_mask_mask, config.image_size_stage2,
                                     config.batch_size_stage2, config.num_workers, config.stage3_augmentation_flag, weights_sample=config.weight_sample)
         # 更新类的训练集以及验证集
-        solver.train_loader, solver.val_loader = train_loader_stage3, val_loader_stage3        
+        solver.train_loader, solver.valid_loader = train_loader_stage3, val_loader_stage3        
         # 针对不同mode，在第三阶段的处理方式
         if config.mode == 'train' or config.mode == 'train_stage3' or config.mode == 'train_stage23':
             solver.train_stage3(index)
@@ -179,7 +179,7 @@ if __name__ == '__main__':
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set 
-        parser.add_argument('--resume', type=str, default='unet_resnet34_2_0_best.pth', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file.')
         '''mode可选值 没有考虑各自阶段训练到一半重新加载的情况，因为学习率为余弦衰减，不可控 TODO
         train: 训练所有阶段, resume必须为空
         train_stage1: 只训练第一阶段, resume必须为空
@@ -190,7 +190,7 @@ if __name__ == '__main__':
         choose_threshold2: 只选第二阶段的阈值
         choose_threshold3: 只选第三阶段的阈值
         '''
-        parser.add_argument('--mode', type=str, default='train_stage2', \
+        parser.add_argument('--mode', type=str, default='train', \
             help='train/train_stage1/train_stage2/train_stage3/train_stage23/choose_threshold1/choose_threshold2/choose_threshold3.')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')

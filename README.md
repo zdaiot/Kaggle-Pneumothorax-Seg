@@ -6,9 +6,7 @@ code for [kaggle siim-acr-pneumothorax-segmentation](https://www.kaggle.com/c/si
 * Python3.7
 * Install [backboned-unet](https://github.com/mkisantal/backboned-unet) first
 ```
-git clone https://github.com/mkisantal/backboned-unet.git
-cd backboned-unet
-pip install .
+pip install git+https://github.com/mkisantal/backboned-unet.git
 ```
 * Install image augumentation library [albumentations](https://github.com/albu/albumentations)
 ```
