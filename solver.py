@@ -13,6 +13,8 @@ from models.linknet import LinkNet34
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
 import csv
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+import seaborn as sns
 import tqdm
 from backboned_unet import Unet
 from utils.loss import GetLoss, RobustFocalLoss2d, BCEDiceLoss, SoftBCEDiceLoss, SoftBceLoss, LovaszLoss
@@ -586,9 +588,21 @@ class Train(object):
         
         return (2. * intersect / union)
 
+    def classify_score(self, preds, targs):
+        n = preds.shape[0]  # batch size为多少
+        preds = preds.view(n, -1)
+        targs = targs.view(n, -1)
+        # preds, targs = preds.to(self.device), targs.to(self.device)
+        preds_, targs_ = torch.sum(preds, 1), torch.sum(targs, 1)
+        preds_, targs_ = preds_ > 0, targs_ > 0
+        preds_, targs_ = preds_.cpu(), targs_.cpu()
+        score = torch.sum(preds_ == targs_)
+        return score.item()/n
+
     def choose_threshold(self, model_path, index):
         self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
-        print('Loaded from %s' % model_path)
+        stage = eval(model_path.split('/')[-1].split('_')[2])
+        print('Loaded from %s, using choose_threshold!' % model_path)
         self.unet.eval()
         
         with torch.no_grad():
@@ -605,6 +619,7 @@ class Train(object):
                     preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
                     # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                     tmp.append(self.dice_overall(preds, masks).mean())
+                    # tmp.append(self.classify_score(preds, masks))
                 dices_big.append(sum(tmp) / len(tmp))
             dices_big = np.array(dices_big)
             best_thrs_big = thrs_big[dices_big.argmax()]
@@ -622,28 +637,33 @@ class Train(object):
                     preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
                     # preds[preds.view(preds.shape[0],-1).sum(-1) < noise_th,...] = 0.0 # 过滤噪声点
                     tmp.append(self.dice_overall(preds, masks).mean())
+                    # tmp.append(self.classify_score(preds, masks))
                 dices_little.append(sum(tmp) / len(tmp))
             dices_little = np.array(dices_little)
             # score = dices.max()
             best_thr = thrs_little[dices_little.argmax()]
             
             # 选最优像素阈值
-            dices_pixel = []
-            pixel_thrs = np.arange(0, 2304, 256)  # 阈值列表
-            for pixel_thr in pixel_thrs:
-                tmp = []
-                tbar = tqdm.tqdm(self.valid_loader)
-                for i, (images, masks) in enumerate(tbar):
-                    # GT : Ground Truth
-                    images = images.to(self.device)
-                    net_output = torch.sigmoid(self.unet(images))
-                    preds = (net_output > best_thr).to(self.device).float()  # 大于阈值的归为1
-                    preds[preds.view(preds.shape[0],-1).sum(-1) < pixel_thr,...] = 0.0 # 过滤噪声点
-                    tmp.append(self.dice_overall(preds, masks).mean())
-                dices_pixel.append(sum(tmp) / len(tmp))
-            dices_pixel = np.array(dices_pixel)
-            score = dices_pixel.max()
-            best_pixel_thr = pixel_thrs[dices_pixel.argmax()]
+            if stage != 3:
+                dices_pixel = []
+                pixel_thrs = np.arange(0, 2304, 256)  # 阈值列表
+                for pixel_thr in pixel_thrs:
+                    tmp = []
+                    tbar = tqdm.tqdm(self.valid_loader)
+                    for i, (images, masks) in enumerate(tbar):
+                        # GT : Ground Truth
+                        images = images.to(self.device)
+                        net_output = torch.sigmoid(self.unet(images))
+                        preds = (net_output > best_thr).to(self.device).float()  # 大于阈值的归为1
+                        preds[preds.view(preds.shape[0],-1).sum(-1) < pixel_thr,...] = 0.0 # 过滤噪声点
+                        tmp.append(self.dice_overall(preds, masks).mean())
+                        # tmp.append(self.classify_score(preds, masks))
+                    dices_pixel.append(sum(tmp) / len(tmp))
+                dices_pixel = np.array(dices_pixel)
+                score = dices_pixel.max()
+                best_pixel_thr = pixel_thrs[dices_pixel.argmax()]
+            elif stage == 3:
+                best_pixel_thr, score = 0, dices_little.max()
             print('best_thr:{}, best_pixel_thr:{}, score:{}'.format(best_thr, best_pixel_thr, score))
 
         plt.figure(figsize=(10.4, 4.8))
@@ -655,8 +675,9 @@ class Train(object):
         plt.plot(thrs_little, dices_little)
         plt.subplot(1, 3, 3)
         plt.title('pixel thrs search')
-        plt.plot(pixel_thrs, dices_pixel)
-        plt.savefig(os.path.join(self.save_path, str(index)+'png'))
+        if stage != 3:
+            plt.plot(pixel_thrs, dices_pixel)
+        plt.savefig(os.path.join(self.save_path, 'stage{}'.format(stage)+'_fold'+str(index)))
         # plt.show()
         plt.close()
         return float(best_thr), float(best_pixel_thr), float(score)
@@ -692,5 +713,67 @@ class Train(object):
                 tmp.append(self.dice_overall(preds, masks).mean())
             print('score:', sum(tmp) / len(tmp))
 
-        
         print('count_true:{}, count_pred:{}'.format(count_true, count_pred))
+
+    def grid_search(self, thrs_big, pixel_thrs):
+        with torch.no_grad():
+            # 先大概选取阈值范围和像素阈值范围
+            dices_big = [] # 存放的是二维矩阵，每一行为每一个阈值下所有像素阈值得到的得分
+            for th in thrs_big:
+                dices_pixel = []
+                for pixel_thr in pixel_thrs: 
+                    tmp = []
+                    tbar = tqdm.tqdm(self.valid_loader)
+                    for i, (images, masks) in enumerate(tbar):
+                        # GT : Ground Truth
+                        images = images.to(self.device)
+                        net_output = torch.sigmoid(self.unet(images))
+                        preds = (net_output > th).to(self.device).float()  # 大于阈值的归为1
+                        preds[preds.view(preds.shape[0],-1).sum(-1) < pixel_thr,...] = 0.0 # 过滤噪声点
+                        tmp.append(self.dice_overall(preds, masks).mean())
+                        # tmp.append(self.classify_score(preds, masks))
+                    dices_pixel.append(sum(tmp) / len(tmp))
+                dices_big.append(dices_pixel)
+            dices_big = np.array(dices_big)
+            print('粗略挑选最优阈值和最优像素阈值，dices_big_shape:{}'.format(np.shape(dices_big)))
+            re = np.where(dices_big == np.max(dices_big))
+            # 如果有多个最大值的处理方式
+            if np.shape(re)[1] != 1:
+                re = re[0]
+            best_thrs_big, best_pixel_thr = thrs_big[int(re[0])], pixel_thrs[int(re[1])]
+            best_thr, score = best_thrs_big, dices_big.max()
+        return best_thr, best_pixel_thr, score, dices_big
+
+    def choose_threshold_grid(self, model_path, index):
+        self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
+        stage = eval(model_path.split('/')[-1].split('_')[2])
+        print('Loaded from %s, using choose_threshold_grid!' % model_path)
+        self.unet.eval()
+        
+        thrs_big1 = np.arange(0.60, 0.75, 0.03)  # 阈值列表
+        pixel_thrs1 = np.arange(1024+64, 2304+64, 256)  # 像素阈值列表
+        best_thr1, best_pixel_thr1, score1, dices_big1 = self.grid_search(thrs_big1, pixel_thrs1)
+        print('best_thr1:{}, best_pixel_thr1:{}, score1:{}'.format(best_thr1, best_pixel_thr1, score1))
+
+        thrs_big2 = np.arange(0.66, 0.81, 0.03)  # 阈值列表
+        pixel_thrs2 = np.arange(768, 1793, 256)  # 像素阈值列表
+        best_thr2, best_pixel_thr2, score2, dices_big2 = self.grid_search(thrs_big2, pixel_thrs2)
+        print('best_thr2:{}, best_pixel_thr2:{}, score2:{}'.format(best_thr2, best_pixel_thr2, score2))
+
+        if score1 < score2:  best_thr, best_pixel_thr, score, dices_big = best_thr2, best_pixel_thr2, score2, dices_big2
+        else: best_thr, best_pixel_thr, score, dices_big = best_thr1, best_pixel_thr1, score1, dices_big1
+            
+        print('best_thr:{}, best_pixel_thr:{}, score:{}'.format(best_thr, best_pixel_thr, score))
+
+        f, (ax1, ax2) = plt.subplots(figsize=(14.4, 4.8),ncols=2)
+
+        cmap = sns.cubehelix_palette(start = 1.5, rot = 3, gamma=0.8, as_cmap = True)
+        sns.heatmap(dices_big1, linewidths = 0.05, ax = ax1, vmax=np.max(dices_big1), vmin=np.min(dices_big1), cmap=cmap, annot=True, fmt='.3f')
+        ax1.set_title('Large-scale search')
+
+        sns.heatmap(dices_big2, linewidths = 0.05, ax = ax2, vmax=np.max(dices_big2), vmin=np.min(dices_big2), cmap=cmap, annot=True, fmt='.3f')
+        ax2.set_title('Little-scale search')
+        f.savefig(os.path.join(self.save_path, 'stage{}'.format(stage)+'_fold'+str(index)))
+        # plt.show()
+        plt.close()
+        return float(best_thr), float(best_pixel_thr), float(score)

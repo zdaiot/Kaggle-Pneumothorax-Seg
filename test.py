@@ -142,7 +142,8 @@ class Test(object):
             print('Load segmentation weight from %s.' % unet_path)
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
             self.unet.eval()
-
+            
+            count_mask_classify = 0
             with torch.no_grad():
                 # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
                 for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
@@ -150,6 +151,7 @@ class Test(object):
                     pred = preds_cla[index, ...]
                     # 如果有掩膜的话，加载分割模型进行测试
                     if np.sum(pred) > 0:
+                        count_mask_classify += 1
                         img_path = os.path.join(test_image_path, file.strip() + '.jpg')
                         img = Image.open(img_path).convert('RGB')
                         
@@ -158,7 +160,8 @@ class Test(object):
                         if not seg_average_vote:
                             pred = np.where(pred > thresholds_seg[fold], 1, 0)
                     preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
-        
+                print('Fold %d Detect %d mask in classify.'%(fold, count_mask_classify))
+
         if not seg_average_vote:
             vote_model_num = len(n_splits)
             vote_ticket = round(vote_model_num / 2.0)
@@ -177,6 +180,11 @@ class Test(object):
                 pred = np.where(pred > vote_ticket, 1, 0)
             else:
                 pred = np.where(pred > average_threshold, 1, 0)
+                # if np.sum(pred) < 512: # TODO
+                #     pred[:] = 0
+                
+            # if np.sum(pred)>0:
+            #     count_has_mask += 1
 
             encoding = mask_to_rle(pred.T, 1024, 1024)
             if encoding == ' ':
@@ -283,12 +291,12 @@ if __name__ == "__main__":
     with open('checkpoints/'+model_name+'/result_stage3.json', 'r', encoding='utf-8') as json_file:
         config_seg = json.load(json_file)
     
-    n_splits = [0, 1, 2, 3, 4]
-    thresholds_classify, thresholds_seg, less_than_sum = [], [], []
+    n_splits = [0] # 0, 1, 2, 3, 4
+    thresholds_classify, thresholds_seg, less_than_sum = [0 for x in range(5)], [0 for x in range(5)], [0 for x in range(5)]
     for x in n_splits:
-        thresholds_classify.append(config_cla[str(x)][0])
-        less_than_sum.append(config_cla[str(x)][1])
-        thresholds_seg.append(config_seg[str(x)][0])
+        thresholds_classify[x] = config_cla[str(x)][0]
+        less_than_sum[x] = config_cla[str(x)][1]
+        thresholds_seg[x] = config_seg[str(x)][0]
     seg_average_vote = True
     average_threshold = config_seg['mean'][0]
     test_best_mode = True

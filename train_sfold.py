@@ -111,7 +111,7 @@ def main(config):
             solver.train_stage2(index)
         elif config.mode == 'choose_threshold2':
             # solver.pred_mask_count(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), masks_bool, val_index, 0.80, 1280)
-            best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
+            best_thr, best_pixel_thr, score = solver.choose_threshold_grid(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
             scores.append(score)
             best_thrs.append(best_thr)
             best_pixel_thrs.append(best_pixel_thr)
@@ -128,6 +128,7 @@ def main(config):
         if config.mode == 'train' or config.mode == 'train_stage3' or config.mode == 'train_stage23':
             solver.train_stage3(index)
         elif config.mode == 'choose_threshold3':
+            # solver.pred_mask_count(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 3, index)), masks_bool_mask, val_index_mask, 0.67, 0)
             best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 3, index)), index)
             scores.append(score)
             best_thrs.append(best_thr)

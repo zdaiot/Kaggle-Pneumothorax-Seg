@@ -63,7 +63,7 @@ I think this error means that you have two tensorboards installed so the plugin 
 - [x] deeplabv3+ (not work)
 - [x] Recitified Adam(Radams) (not work)
 - [x] three stage set: Load the weights of the second phase and train only on masked datasets(matters a lot，from 0.8691 to 0.8741)
-- [ ] the dice coefficient is unstale in val set
+- [x] the dice coefficient is unstale in val set (The code is wrong.WTF)
 
 ## Dataset
 Creat dataset soft links in the following directories.
