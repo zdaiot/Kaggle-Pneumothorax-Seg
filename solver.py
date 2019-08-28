@@ -22,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
-
+import pandas as pd
 
 class Train(object):
     def __init__(self, config, train_loader, valid_loader):
@@ -750,13 +750,13 @@ class Train(object):
         print('Loaded from %s, using choose_threshold_grid!' % model_path)
         self.unet.eval()
         
-        thrs_big1 = np.arange(0.60, 0.75, 0.03)  # 阈值列表
-        pixel_thrs1 = np.arange(1024+64, 2304+64, 256)  # 像素阈值列表
+        thrs_big1 = np.arange(0.60, 0.81, 0.015)  # 阈值列表
+        pixel_thrs1 = np.arange(768, 2305, 256)  # 像素阈值列表
         best_thr1, best_pixel_thr1, score1, dices_big1 = self.grid_search(thrs_big1, pixel_thrs1)
         print('best_thr1:{}, best_pixel_thr1:{}, score1:{}'.format(best_thr1, best_pixel_thr1, score1))
 
-        thrs_big2 = np.arange(0.66, 0.81, 0.03)  # 阈值列表
-        pixel_thrs2 = np.arange(768, 1793, 256)  # 像素阈值列表
+        thrs_big2 = np.arange(best_thr1-0.015, best_thr1+0.015, 0.0075)  # 阈值列表
+        pixel_thrs2 = np.arange(best_pixel_thr1-256, best_pixel_thr1+257, 128)  # 像素阈值列表
         best_thr2, best_pixel_thr2, score2, dices_big2 = self.grid_search(thrs_big2, pixel_thrs2)
         print('best_thr2:{}, best_pixel_thr2:{}, score2:{}'.format(best_thr2, best_pixel_thr2, score2))
 
@@ -765,13 +765,15 @@ class Train(object):
             
         print('best_thr:{}, best_pixel_thr:{}, score:{}'.format(best_thr, best_pixel_thr, score))
 
-        f, (ax1, ax2) = plt.subplots(figsize=(14.4, 4.8),ncols=2)
+        f, (ax1, ax2) = plt.subplots(figsize=(14.4, 4.8), ncols=2)
 
         cmap = sns.cubehelix_palette(start = 1.5, rot = 3, gamma=0.8, as_cmap = True)
-        sns.heatmap(dices_big1, linewidths = 0.05, ax = ax1, vmax=np.max(dices_big1), vmin=np.min(dices_big1), cmap=cmap, annot=True, fmt='.3f')
+        data1 = pd.DataFrame(data=dices_big1, index=np.around(thrs_big1, 3), columns=pixel_thrs1)
+        sns.heatmap(data1, linewidths = 0.05, ax = ax1, vmax=np.max(dices_big1), vmin=np.min(dices_big1), cmap=cmap, annot=True, fmt='.4f')
         ax1.set_title('Large-scale search')
 
-        sns.heatmap(dices_big2, linewidths = 0.05, ax = ax2, vmax=np.max(dices_big2), vmin=np.min(dices_big2), cmap=cmap, annot=True, fmt='.3f')
+        data2 = pd.DataFrame(data=dices_big2, index=np.around(thrs_big2, 3), columns=pixel_thrs2)
+        sns.heatmap(data2, linewidths = 0.05, ax = ax2, vmax=np.max(dices_big2), vmin=np.min(dices_big2), cmap=cmap, annot=True, fmt='.4f')
         ax2.set_title('Little-scale search')
         f.savefig(os.path.join(self.save_path, 'stage{}'.format(stage)+'_fold'+str(index)))
         # plt.show()

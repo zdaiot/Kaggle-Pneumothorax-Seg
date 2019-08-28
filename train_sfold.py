@@ -73,9 +73,9 @@ def main(config):
     for index, ((train_index, val_index), (train_index_mask, val_index_mask)) in enumerate(zip(split1, split2)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
         # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
-        if index != 0:
-            print("Fold {} passed".format(index))
-            continue
+        # if index != 0:
+        #     print("Fold {} passed".format(index))
+        #     continue
         train_image = [images_path[x] for x in train_index]
         train_mask = [masks_path[x] for x in train_index]
         val_image = [images_path[x] for x in val_index]
@@ -162,12 +162,12 @@ if __name__ == '__main__':
         zdaiot:10,6 z840:12,6 mxq:20,10
         '''
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=10, help='batch size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=10, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=15, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')
@@ -181,7 +181,7 @@ if __name__ == '__main__':
         parser.add_argument('--n_splits', type=int, default=5, help='n_splits_fold')
 
         # model set 
-        parser.add_argument('--resume', type=str, default='unet_resnet34_1_2_best.pth', help='if has value, must be the name of Weight file.')
+        parser.add_argument('--resume', type=str, default='', help='if has value, must be the name of Weight file.')
         '''mode可选值 没有考虑各自阶段训练到一半重新加载的情况，因为学习率为余弦衰减，不可控 TODO
         train: 训练所有阶段, resume必须为空
         train_stage1: 只训练第一阶段, resume必须为空
@@ -192,7 +192,7 @@ if __name__ == '__main__':
         choose_threshold2: 只选第二阶段的阈值
         choose_threshold3: 只选第三阶段的阈值
         '''
-        parser.add_argument('--mode', type=str, default='choose_threshold2', \
+        parser.add_argument('--mode', type=str, default='train', \
             help='train/train_stage1/train_stage2/train_stage3/train_stage23/choose_threshold1/choose_threshold2/choose_threshold3.')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')
