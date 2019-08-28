@@ -660,3 +660,37 @@ class Train(object):
         # plt.show()
         plt.close()
         return float(best_thr), float(best_pixel_thr), float(score)
+    
+    def pred_mask_count(self, model_path, masks_bool, val_index, best_thr, best_pixel_thr):
+        count_true, count_pred = 0,0
+        for index1 in val_index:
+            if masks_bool[index1]:
+                count_true += 1
+
+        self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
+        print('Loaded from %s' % model_path)
+        self.unet.eval()
+
+        with torch.no_grad():
+            tmp = []
+            tbar = tqdm.tqdm(self.valid_loader)
+            for i, (images, masks) in enumerate(tbar):
+                # GT : Ground Truth
+                images = images.to(self.device)
+                net_output = torch.sigmoid(self.unet(images))
+                preds = (net_output > best_thr).to(self.device).float()  # 大于阈值的归为1
+                preds[preds.view(preds.shape[0],-1).sum(-1) < best_pixel_thr,...] = 0.0 # 过滤噪声点
+
+                n = preds.shape[0]  # batch size为多少
+                preds = preds.view(n, -1)
+                
+                for index2 in range(n):
+                    pred = preds[index2, ...]
+                    if torch.sum(pred) > 0:
+                        count_pred += 1
+
+                tmp.append(self.dice_overall(preds, masks).mean())
+            print('score:', sum(tmp) / len(tmp))
+
+        
+        print('count_true:{}, count_pred:{}'.format(count_true, count_pred))

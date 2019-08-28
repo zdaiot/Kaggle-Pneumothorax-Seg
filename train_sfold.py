@@ -30,7 +30,7 @@ def main(config):
 
     # 打印配置参数，并输出到文件中
     pprint(config)
-    if config.mode != 'choose_threshold':
+    if 'choose_threshold' not in config.mode:
         TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S}".format(datetime.now()) 
         with codecs.open(config.save_path + '/'+ TIMESTAMP + '.json', 'w', "utf-8") as json_file:
             json.dump({k: v for k, v in config._get_kwargs()}, json_file, ensure_ascii=False)
@@ -73,7 +73,7 @@ def main(config):
     for index, ((train_index, val_index), (train_index_mask, val_index_mask)) in enumerate(zip(split1, split2)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
         # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
-        if index != 2:
+        if index != 0:
             print("Fold {} passed".format(index))
             continue
         train_image = [images_path[x] for x in train_index]
@@ -110,6 +110,7 @@ def main(config):
         if config.mode == 'train' or config.mode == 'train_stage2' or config.mode == 'train_stage23':
             solver.train_stage2(index)
         elif config.mode == 'choose_threshold2':
+            # solver.pred_mask_count(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), masks_bool, val_index, 0.80, 1280)
             best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
             scores.append(score)
             best_thrs.append(best_thr)
@@ -190,7 +191,7 @@ if __name__ == '__main__':
         choose_threshold2: 只选第二阶段的阈值
         choose_threshold3: 只选第三阶段的阈值
         '''
-        parser.add_argument('--mode', type=str, default='train_stage23', \
+        parser.add_argument('--mode', type=str, default='choose_threshold2', \
             help='train/train_stage1/train_stage2/train_stage3/train_stage23/choose_threshold1/choose_threshold2/choose_threshold3.')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')
