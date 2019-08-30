@@ -110,7 +110,7 @@ def dcm2jpg(dcm_path, save_jpg_path, csv_path=None, save_mask_path=None, show_in
                             mask = mask + rle2mask(x, 1024, 1024).T
                         mask = np.where(mask>0, 255, 0)
                 print('save')
-                misc.imsave(os.path.join(save_jpg_path, file_path.split('/')[-1][:-4]+'.jpg'), dataset.pixel_array)
+                # misc.imsave(os.path.join(save_jpg_path, file_path.split('/')[-1][:-4]+'.jpg'), dataset.pixel_array)
                 misc.imsave(os.path.join(save_mask_path, file_path.split('/')[-1][:-4]+'.png'), mask)   
             except KeyError:
                 print("Key" + file_path.split('/')[-1][:-4] + ",without mask")
@@ -118,27 +118,34 @@ def dcm2jpg(dcm_path, save_jpg_path, csv_path=None, save_mask_path=None, show_in
     print('count_no_mask:',count_no_mask)
 
 def run(): 
-    dcm_path = '../../input/sample images/*.dcm'
-    save_jpg_path = '../../input/sample_images'
-    csv_path = '../../input/sample images/train-rle-sample.csv'
-    save_mask_path = '../../input/sample_mask'
-    dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
+    # dcm_path = '../../input/sample images/*.dcm'
+    # save_jpg_path = '../../input/sample_images'
+    # csv_path = '../../input/sample images/train-rle-sample.csv'
+    # save_mask_path = '../../input/sample_mask'
+    # dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
 
-    dcm_path = '../../input/dicom-images-train/*/*/*.dcm'
-    save_jpg_path = '../../input/train_images'
-    csv_path = '../../input/train-rle.csv'
-    save_mask_path = '../../input/train_mask'
-    dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
+    # dcm_path = '../../input/dicom-images-train/*/*/*.dcm'
+    # save_jpg_path = '../../input/train_images'
+    # csv_path = '../../input/train-rle.csv'
+    # save_mask_path = '../../input/train_mask'
+    # dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
 
     '''there are four pic no be masked, handed del please
     1.2.276.0.7230010.3.1.4.8323329.6491.1517875198.577052
     1.2.276.0.7230010.3.1.4.8323329.7013.1517875202.343274
     1.2.276.0.7230010.3.1.4.8323329.6370.1517875197.841736
     1.2.276.0.7230010.3.1.4.8323329.6082.1517875196.407031
+    1.2.276.0.7230010.3.1.4.8323329.7020.1517875202.386064
     '''
-    # dcm_path = './input/dicom-images-test/*/*/*.dcm'
-    # save_jpg_path = './input/test_images'
-    # dcm2jpg(dcm_path, save_jpg_path)
+    dcm_path = '../input/dicom-images-test/*/*/*.dcm'
+    save_jpg_path = '../input/test_images'
+    csv_path = '../input/stage_2_train.csv'
+    save_mask_path = '../input/test_mask'
+    dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
+
+    dcm_path = '../input/stage_2_images/*.dcm'
+    save_jpg_path = '../input/test_images_stage2'
+    dcm2jpg(dcm_path, save_jpg_path)
 
 if __name__ == "__main__":
     run()
