@@ -15,9 +15,9 @@ from albumentations import CLAHE
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
+import json
 
-
-def detect(model, mean, std, image_path, input_size=224, threshold=0.6, cuda=True):
+def load_image(mean, std, image_path, input_size, cuda=True):
     image = Image.open(image_path).convert('RGB')
     image_raw = image.resize((input_size, input_size))
 
@@ -34,15 +34,29 @@ def detect(model, mean, std, image_path, input_size=224, threshold=0.6, cuda=Tru
 
     if cuda:
         image = image.cuda()
+    return image_raw, image
+
+def detect(model, image, threshold, less_than_sum):
     with torch.no_grad(): 
         output = model(image)
-    output = torch.nn.functional.sigmoid(output)
+    output = torch.sigmoid(output)
     pred = output.data.cpu().numpy()
     pred = np.where(pred>threshold, 1, 0)[0]
-    pred = np.reshape(pred, (input_size, input_size)).astype(np.int8)*255.
+    if np.sum(pred) < less_than_sum:
+        pred[:] = 0
+    return pred
 
-    return image_raw, pred
-
+def detect_stage3(model, image_tensor, pred_stage2, threshold_stage3):
+    '''
+    model: 第三阶段的模型
+    image: 第二阶段的预测结果
+    input_size: 第三阶段的图像尺寸
+    threshold_stage3: 第三阶段的阈值
+    '''
+    if np.sum(pred_stage2) > 0:
+        return detect(model, image_tensor, threshold=threshold_stage3, less_than_sum=0)
+    else:
+        return pred_stage2
 
 def combine_display(image_raw, mask, pred, title_diplay):
     plt.suptitle(title_diplay)
@@ -60,7 +74,27 @@ def combine_display(image_raw, mask, pred, title_diplay):
 
     plt.show()
 
-def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_size=512, threshold=0.25, cuda=True):
+def combine_display_stage3(image_raw, mask, pred_stage2, pred_stage3, title_diplay):
+    plt.suptitle(title_diplay)
+    plt.subplot(1, 4, 1)
+    plt.title('image_raw')
+    plt.imshow(image_raw)
+
+    plt.subplot(1, 4, 2)
+    plt.title('mask')
+    plt.imshow(mask)
+
+    plt.subplot(1, 4, 3)
+    plt.title('pred_stage2')
+    plt.imshow(pred_stage2)
+
+    plt.subplot(1, 4, 4)
+    plt.title('pred_stage3')
+    plt.imshow(pred_stage3)
+
+    plt.show()
+
+def load_model(model_name, checkpoint_path, cuda=True):
     if model_name == 'U_Net':
         model = U_Net(img_ch=3, output_ch=1)
     elif model_name == 'unet_resnet34':
@@ -91,21 +125,39 @@ def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint['state_dict'])
     model.train(False)
+    return model
+
+def demo(model_name, mean, std, checkpoint_path, images_path, masks_path, input_size, threshold, less_than_sum, use_stage3, threshold_stage3, cuda=True):
+    model = load_model(model_name, checkpoint_path)
+
+    if use_stage3:
+        tmp = checkpoint_path.split('_')
+        tmp[3] = '3'
+        checkpoint_path_stage3 = '_'.join(tmp)
+        model_stage3 = load_model(model_name, checkpoint_path_stage3)
+
     images = os.listdir(images_path)
     for image in images:
         image_path = os.path.join(images_path, image)
-        image_raw, pred_mask = detect(model, mean, std, image_path, input_size, threshold, cuda)
+        image_raw, image_tensor = load_image(mean, std, image_path, input_size=input_size)
+        pred_stage2 = detect(model, image_tensor, threshold=threshold, less_than_sum=less_than_sum)
+        pred_stage2_reshape = np.reshape(pred_stage2, (input_size, input_size)).astype(np.int8)*255.
 
         mask_path = os.path.join(masks_path, image.replace('jpg', 'png'))
         mask = Image.open(mask_path).resize((input_size, input_size))
 
-        combine_display(image_raw, mask, pred_mask, 'Result Show')
+        if use_stage3:
+            pred_stage3 = detect_stage3(model_stage3, image_tensor, pred_stage2, threshold_stage3=threshold_stage3)
+            pred_stage3_reshape = np.reshape(pred_stage3, (input_size, input_size)).astype(np.int8)*255.
+            combine_display_stage3(image_raw, mask, pred_stage2_reshape, pred_stage3_reshape, 'Result Show for stage2 and stage3')
+        else:
+            combine_display(image_raw, mask, pred_stage2_reshape, 'Result Show for stage2')
 
 
 if __name__ == "__main__":
     base_dir = 'datasets/SIIM_data'
-    images_folder = os.path.join(base_dir, 'train_images')
-    masks_folder = os.path.join(base_dir, 'train_mask')
+    images_folder = os.path.join(base_dir, 'test_images')
+    masks_folder = os.path.join(base_dir, 'test_mask')
     model_name = 'unet_resnet34'
 
     mean = (0.485, 0.456, 0.406)
@@ -114,10 +166,23 @@ if __name__ == "__main__":
     # std = (0.229, 0.229, 0.229)
 
     # stage表示测试第几阶段的代码，对应不同的image_size，fold表示为交叉验证的第几个
-    stage, fold = 2, 0
+    stage, fold = 2, 4
     if stage == 1:
         image_size = 768
     elif stage == 2:
         image_size = 1024
+    use_stage3 = False
+
+    with open('checkpoints/'+model_name+'/result_stage2.json', 'r', encoding='utf-8') as json_file:
+        config_cla = json.load(json_file)
+    
+    with open('checkpoints/'+model_name+'/result_stage3.json', 'r', encoding='utf-8') as json_file:
+        config_seg = json.load(json_file)
+    
+    thresholds_stage2 = config_cla[str(fold)][0]
+    less_than_sum = config_cla[str(fold)][1]
+    thresholds_stage3 = config_seg[str(fold)][0]
+
     checkpoint_path = os.path.join('checkpoints', model_name, model_name+'_{}_{}_best.pth'.format(stage, fold))
-    demo(model_name, mean, std, checkpoint_path, images_folder, masks_folder, image_size, threshold=0.65)
+    demo(model_name, mean, std, checkpoint_path, images_folder, masks_folder, image_size, \
+        threshold=thresholds_stage2, less_than_sum=less_than_sum, use_stage3=use_stage3, threshold_stage3=thresholds_stage3)
