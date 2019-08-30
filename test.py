@@ -298,7 +298,10 @@ if __name__ == "__main__":
         less_than_sum[x] = config_cla[str(x)][1]
         thresholds_seg[x] = config_seg[str(x)][0]
     seg_average_vote = True
-    average_threshold = np.asarray(thresholds_seg).mean()
+    if len(n_splits) == 1:
+        average_threshold = thresholds_seg[0]
+    else:
+        average_threshold = np.asarray(thresholds_seg).mean()
     test_best_mode = True
     
     print("stage_cla: %d, stage_seg: %d" % (stage_cla, stage_seg))

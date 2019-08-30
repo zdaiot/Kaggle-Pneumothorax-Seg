@@ -178,7 +178,7 @@ def get_loader(train_image, train_mask, val_image, val_mask, image_size=224, bat
     else: 
         train_data_loader = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
     
-    val_data_loader = DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=True, pin_memory=True)
+    val_data_loader = DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=False, pin_memory=True)
 
     return train_data_loader, val_data_loader
 
