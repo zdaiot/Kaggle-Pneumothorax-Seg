@@ -30,5 +30,5 @@ if __name__ == "__main__":
     file_name = '/result_stage3.json'
     cal_thr_mean(file_name)
 
-    file_name = '/result_stage2_score.json'
-    cal_thr_mean(file_name)
+    # file_name = '/result_stage2_score.json'
+    # cal_thr_mean(file_name)
