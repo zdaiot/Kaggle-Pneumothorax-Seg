@@ -172,7 +172,7 @@ class Train(object):
             self.optimizer.param_groups[0]['initial_lr'] = self.lr
             
         stage1_epoches = self.epoch_stage1 - self.start_epoch
-        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches+5)
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, stage1_epoches+10)
         # 防止训练到一半暂停重新训练，日志被覆盖
         global_step_before = self.start_epoch*len(self.train_loader)
 
