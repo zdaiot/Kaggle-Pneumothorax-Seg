@@ -110,7 +110,7 @@ def dcm2jpg(dcm_path, save_jpg_path, csv_path=None, save_mask_path=None, show_in
                             mask = mask + rle2mask(x, 1024, 1024).T
                         mask = np.where(mask>0, 255, 0)
                 print('save')
-                # misc.imsave(os.path.join(save_jpg_path, file_path.split('/')[-1][:-4]+'.jpg'), dataset.pixel_array)
+                misc.imsave(os.path.join(save_jpg_path, file_path.split('/')[-1][:-4]+'.jpg'), dataset.pixel_array)
                 misc.imsave(os.path.join(save_mask_path, file_path.split('/')[-1][:-4]+'.png'), mask)   
             except KeyError:
                 print("Key" + file_path.split('/')[-1][:-4] + ",without mask")
