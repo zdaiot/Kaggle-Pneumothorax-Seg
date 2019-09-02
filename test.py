@@ -4,6 +4,7 @@ import numpy as np
 import time
 import torch
 import torchvision
+import copy
 from PIL import Image
 import matplotlib.pyplot as plt
 from torch import optim
@@ -102,7 +103,7 @@ class Test(object):
         # 对于每一折加载模型，对所有测试集测试，并取平均
         sample_df = pd.read_csv(csv_path)
         # preds_cla存放模型的分类结果，而preds存放模型的分割结果，其中分割模型默认为1024的分辨率
-        preds_cla, preds = np.zeros([len(sample_df), self.image_size, self.image_size]), np.zeros([len(sample_df), 1024, 1024])
+        preds = np.zeros([len(sample_df), self.image_size, self.image_size])
 
         for fold in n_splits:
             # 加载分类模型，进行测试
@@ -115,7 +116,18 @@ class Test(object):
             print("Load classify weight from %s" % unet_path)
             self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
             self.unet.eval()
+
+            seg_unet = copy.deepcopy(self.unet)
+            # 加载分割模型，进行测试s
+            if test_best_model:
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_seg, fold))
+            else:
+                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage_seg, fold))
+            print('Load segmentation weight from %s.' % unet_path)
+            seg_unet.load_state_dict(torch.load(unet_path)['state_dict'])
+            seg_unet.eval()
             
+            count_mask_classify = 0
             with torch.no_grad():
                 # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
                 for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
@@ -123,43 +135,21 @@ class Test(object):
                     img_path = os.path.join(test_image_path, file.strip() + '.jpg')
                     img = Image.open(img_path).convert('RGB')
                     
-                    pred = self.tta(img)
-                    pred = cv2.resize(pred,(1024, 1024))
+                    pred = self.tta(img, self.unet)
 
                     # 首先经过阈值和像素阈值，判断该图像中是否有掩模
                     pred = np.where(pred > thresholds_classify[fold], 1, 0)
                     if np.sum(pred) < less_than_sum[fold]:
                         pred[:] = 0
-                    preds_cla[index, ...] = pred
 
-            # 加载分割模型，进行测试
-            self.unet = None
-            self.build_model()
-            if test_best_model:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}_best.pth'.format(stage_seg, fold))
-            else:
-                unet_path = os.path.join('checkpoints', self.model_type, self.model_type+'_{}_{}.pth'.format(stage_seg, fold))
-            print('Load segmentation weight from %s.' % unet_path)
-            self.unet.load_state_dict(torch.load(unet_path)['state_dict'])
-            self.unet.eval()
-            
-            count_mask_classify = 0
-            with torch.no_grad():
-                # sample_df = sample_df.drop_duplicates('ImageId ', keep='last').reset_index(drop=True)
-                for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
-                    file = row['ImageId']
-                    pred = preds_cla[index, ...]
                     # 如果有掩膜的话，加载分割模型进行测试
                     if np.sum(pred) > 0:
                         count_mask_classify += 1
-                        img_path = os.path.join(test_image_path, file.strip() + '.jpg')
-                        img = Image.open(img_path).convert('RGB')
-                        
-                        pred = self.tta(img)
-                        # 进行阈值处理
+                        pred = self.tta(img, seg_unet)
+                        # 如果不是采用平均策略，即投票策略，则进行阈值处理，变成0或1
                         if not seg_average_vote:
                             pred = np.where(pred > thresholds_seg[fold], 1, 0)
-                    preds[index, ...] += np.reshape(pred, (self.image_size, self.image_size))
+                    preds[index, ...] += pred
                 print('Fold %d Detect %d mask in classify.'%(fold, count_mask_classify))
 
         if not seg_average_vote:
@@ -175,7 +165,7 @@ class Test(object):
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             file = row['ImageId']
 
-            pred = cv2.resize(preds[index,...],(1024, 1024))
+            pred = preds[index,...]
             if not seg_average_vote:
                 pred = np.where(pred > vote_ticket, 1, 0)
             else:
@@ -185,7 +175,7 @@ class Test(object):
                 
             # if np.sum(pred)>0:
             #     count_has_mask += 1
-
+            pred = cv2.resize(pred, (1024, 1024))
             encoding = mask_to_rle(pred.T, 1024, 1024)
             if encoding == ' ':
                 rle.append([file.strip(), '-1'])
@@ -208,29 +198,31 @@ class Test(object):
 
         return transform_compose(image)
     
-    def detection(self, image):
+    def detection(self, image, model):
         """对输入样本进行检测
         
         Args:
             image: 待检测样本，Image
+            model: 要使用的网络
         Return:
             pred: 检测结果
         """
         image = self.image_transform(image)
         image = torch.unsqueeze(image, dim=0)
         image = image.float().to(self.device)
-        pred = torch.sigmoid(self.unet(image))
+        pred = torch.sigmoid(model(image))
         # 预测出的结果
         pred = pred.view(self.image_size, self.image_size)
         pred = pred.detach().cpu().numpy()
 
         return pred
 
-    def tta(self, image):
+    def tta(self, image, model):
         """执行TTA预测
 
         Args:
             image: Image图片
+            model: 要使用的网络
         Return:
             pred: 最后预测的结果
         """
@@ -245,7 +237,7 @@ class Test(object):
         # 左右翻转
         image_hflip = image.transpose(Image.FLIP_LEFT_RIGHT)
 
-        hflip_pred = self.detection(image_hflip)
+        hflip_pred = self.detection(image_hflip, model)
         hflip_pred_img = Image.fromarray(hflip_pred)
         pred_img = hflip_pred_img.transpose(Image.FLIP_LEFT_RIGHT)
         preds += np.asarray(pred_img)
@@ -255,11 +247,11 @@ class Test(object):
         image_np = np.asarray(image)
         clahe_image = aug(image=image_np)['image']
         clahe_image = Image.fromarray(clahe_image)
-        clahe_pred = self.detection(clahe_image)
+        clahe_pred = self.detection(clahe_image, model)
         preds += clahe_pred
 
         # 原图
-        original_pred = self.detection(image)
+        original_pred = self.detection(image, model)
         preds += original_pred
 
         # 求平均
@@ -273,11 +265,10 @@ if __name__ == "__main__":
     std = (0.229, 0.224, 0.225)
     # mean = (0.490, 0.490, 0.490)
     # std = (0.229, 0.229, 0.229)
-    csv_path = './stage_2_sample_submission.csv' 
-    test_image_path = 'datasets/SIIM_data/test_images_stage2'
+    csv_path = './stage_2_sample_submission.csv' # stage_2_sample_submission.csv
+    test_image_path = 'datasets/SIIM_data/test_images_stage2' # test_images_stage2
     model_name = 'unet_resnet34'
-    # stage_cla表示使用第几阶段的权重作为分类模型，stage_seg表示使用第几阶段的权重作为分割模型，对应不同的image_size，index表示为交叉验证的第几个
-    # image_size TODO
+    # stage_cla表示使用第几阶段的权重作为分类模型，stage_seg表示使用s第几阶段的权重作为分割模型，对应不同的image_size，index表示为交叉验证的第几个
     stage_cla, stage_seg = 2, 3
     
     if stage_cla == 1:
