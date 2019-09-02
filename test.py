@@ -273,8 +273,8 @@ if __name__ == "__main__":
     std = (0.229, 0.224, 0.225)
     # mean = (0.490, 0.490, 0.490)
     # std = (0.229, 0.229, 0.229)
-    csv_path = './submission.csv' 
-    test_image_path = 'datasets/SIIM_data/test_images'
+    csv_path = './stage_2_sample_submission.csv' 
+    test_image_path = 'datasets/SIIM_data/test_images_stage2'
     model_name = 'unet_resnet34'
     # stage_cla表示使用第几阶段的权重作为分类模型，stage_seg表示使用第几阶段的权重作为分割模型，对应不同的image_size，index表示为交叉验证的第几个
     # image_size TODO
@@ -298,10 +298,7 @@ if __name__ == "__main__":
         less_than_sum[x] = config_cla[str(x)][1]
         thresholds_seg[x] = config_seg[str(x)][0]
     seg_average_vote = True
-    if len(n_splits) == 1:
-        average_threshold = thresholds_seg[0]
-    else:
-        average_threshold = np.asarray(thresholds_seg).mean()
+    average_threshold = np.sum(np.asarray(thresholds_seg))/len(n_splits)
     test_best_mode = True
     
     print("stage_cla: %d, stage_seg: %d" % (stage_cla, stage_seg))
