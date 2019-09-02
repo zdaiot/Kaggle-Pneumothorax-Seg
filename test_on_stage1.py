@@ -112,7 +112,7 @@ class Test(object):
                 for index, (image_path, mask_path) in enumerate(tqdm(zip(images_path, masks_path), total=len(images_path))):
                     img = Image.open(image_path).convert('RGB')
                     
-                    pred = self.detection(img)
+                    pred = self.tta(img)
                     pred = cv2.resize(pred,(1024, 1024))
 
                     # 首先经过阈值和像素阈值，判断该图像中是否有掩模
@@ -142,7 +142,7 @@ class Test(object):
                         count_mask_classify += 1
                         img = Image.open(image_path).convert('RGB')
                         
-                        pred = self.detection(img)
+                        pred = self.tta(img)
                         # 进行阈值处理
                         if not seg_average_vote:
                             pred = np.where(pred > thresholds_seg[fold], 1, 0)
@@ -180,6 +180,47 @@ class Test(object):
 
         print('The number of masked pictures predicted:',count_has_mask)
         print('final dice:', dice)
+
+    def tta(self, image):
+        """执行TTA预测
+
+        Args:
+            image: Image图片
+        Return:
+            pred: 最后预测的结果
+        """
+        preds = np.zeros([self.image_size, self.image_size])
+        # 768大小
+        # image_resize = image.resize((768, 768))
+        # resize_pred = self.detection(image_resize)
+        # resize_pred_img = Image.fromarray(resize_pred)
+        # resize_pred_img = resize_pred_img.resize((1024, 1024))
+        # preds += np.asarray(resize_pred_img)
+
+        # 左右翻转
+        image_hflip = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+        hflip_pred = self.detection(image_hflip)
+        hflip_pred_img = Image.fromarray(hflip_pred)
+        pred_img = hflip_pred_img.transpose(Image.FLIP_LEFT_RIGHT)
+        preds += np.asarray(pred_img)
+
+        # CLAHE
+        aug = CLAHE(p=1.0)
+        image_np = np.asarray(image)
+        clahe_image = aug(image=image_np)['image']
+        clahe_image = Image.fromarray(clahe_image)
+        clahe_pred = self.detection(clahe_image)
+        preds += clahe_pred
+
+        # 原图
+        original_pred = self.detection(image)
+        preds += original_pred
+
+        # 求平均
+        pred = preds / 3.0
+
+        return pred
     
     def image_transform(self, image):
         """对样本进行预处理
@@ -263,7 +304,7 @@ if __name__ == "__main__":
     with open('checkpoints/'+model_name+'/result_stage3.json', 'r', encoding='utf-8') as json_file:
         config_seg = json.load(json_file)
     
-    n_splits = [4] # 0, 1, 2, 3, 4
+    n_splits = [0] # 0, 1, 2, 3, 4
     thresholds_classify, thresholds_seg, less_than_sum = [0 for x in range(5)], [0 for x in range(5)], [0 for x in range(5)]
     for x in n_splits:
         thresholds_classify[x] = config_cla[str(x)][0]
