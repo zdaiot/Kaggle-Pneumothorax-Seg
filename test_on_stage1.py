@@ -314,7 +314,7 @@ if __name__ == "__main__":
     if len(n_splits) == 1:
         average_threshold = thresholds_seg[n_splits[0]]
     else:
-        average_threshold = np.asarray(thresholds_seg).mean()
+        average_threshold = np.asarray(thresholds_seg)/len(n_splits)
     test_best_mode = True
     
     print("stage_cla: %d, stage_seg: %d" % (stage_cla, stage_seg))
