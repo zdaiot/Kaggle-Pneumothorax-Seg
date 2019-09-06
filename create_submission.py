@@ -3,7 +3,6 @@ import numpy as np
 import copy
 from PIL import Image
 from tqdm import tqdm_notebook, tqdm
-from utils.evaluation import *
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
 from models.linknet import LinkNet34
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
@@ -17,6 +16,7 @@ from albumentations import CLAHE
 import json
 from models.Transpose_unet.unet.model import Unet as Unet_t
 from models.octave_unet.unet.model import OctaveUnet
+import torch
 
 
 class Test(object):

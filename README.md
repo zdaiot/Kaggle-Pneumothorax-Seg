@@ -1,4 +1,8 @@
-code for [kaggle siim-acr-pneumothorax-segmentation](https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation), 34th place solution
+# SIIM-ACR Pneumothorax Segmentation Competition In Kaggle
+
+![](./images/header.jpg)
+
+Code for [kaggle siim-acr-pneumothorax-segmentation](https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation), 34th place solution.
 
 ## Requirements
 * Pytorch 1.1.0 
@@ -24,7 +28,8 @@ pip install future
 pip install git+https://github.com/qubvel/segmentation_models.pytorch
 ```
 
-When you run `tensorboard --logdir=checkpoints/unet_resnet34`,  it happens to this error: `ValueError: Duplicate plugins for name projector`, please see [this](https://github.com/pytorch/pytorch/issues/22676)
+If you encountered error like: `ValueError: Duplicate plugins for name projector` when you are evacuating `tensorboard --logdir=checkpoints/unet_resnet34`, please refer to: [this](https://github.com/pytorch/pytorch/issues/22676).
+
 ```
 I downloaded a test script from https://raw.githubusercontent.com/tensorflow/tensorboard/master/tensorboard/tools/diagnose_tensorboard.py
 I run it and it told me that I have two tensorboards with a different version. Also, it told me how to fix it.
@@ -32,49 +37,31 @@ I followed its instructions and I can make my tensorboard work.
 
 I think this error means that you have two tensorboards installed so the plugin will be duplicated. Another method would be helpful that is to reinstall the python environment using conda.
 ```
+## Segmentation Results
 
-## TODO
-- [x] unet_resnet34(matters a lot)
-- [x] two stage set: two stage batch size(768,1024 big solution matters a lot) and two stages epoch
-- [x] epoch freezes the encoder layer in the first stage
-- [x] epoch gradients accumulate in the second stage
-- [x] data augmentation
-- [x] CLAHE for every picture(matters a little)
-- [x] lr decay - cos annealing(matters a lot)
-- [x] cross validation
-- [x] Stratified K-fold
-- [x] Average each result of cross validation(matters a lot) 
-- [x] stage2 init lr and optimizer
-- [x] weight decay(When equal to 5e-4, the negative effect, val loss decreases and dice oscillates, the highest is 0.77)
-- [x] leak, TTA
-- [x] datasets_statics and choose less than sum
-- [x] adapt to torchvison0.2.0, tensorboard
-- [x] different Learning rates between encoder and decoder in stage2 (not well)
-- [x] freeze BN in stage2 (not well)
-- [x] using lovasz loss in stage2 (this loss can be used to finetune model) (not well)
-- [x] replace upsample (interplotation) with transpose convolution (not well)
-- [x] using octave convolution in unet's decoder (not well)
-- [x] resnet34->resnet50 (a wider model can work better with bigger resolution) (not well)
-- [x] move noise form augmentation (not well)
-- [x] Unet with Attention (not test, the model is too big, so that the batch size is too small)
-- [x] change from 5 flod to 10 fold (not well)
-- [x] hypercolumn unet (not well)
-- [x] Dataset expansion (not well)
-- [x] Data expansion is used only in the 1/3/10 epoch in the first stage (not well)
-- [x] deeplabv3+ (not work)
-- [x] Recitified Adam(Radams) (not work)
-- [x] three stage set: Load the weights of the second phase and train only on masked datasets(matters a lot，from 0.8691 to 0.8741)
-- [x] the dice coefficient is unstale in val set (The code is wrong.WTF)
+The followings are some visualizations of our results.
+
+**Using only one model:**
+
+![](./images/Figure_1.png)
+
+There are three parts in the image above. The left part is patient's X-ray picture, the middle is the original mask, the right is our segmentation mask.
+
+**Using five models ensemble**:
+
+![](./images/Figure_2.png)
 
 ## How to run
-git clone this project first
+
+### Clone Our Project
+
 ```bash
 git clone https://github.com/XiangqianMa/Kaggle-Pneumothorax-Seg.git
 cd Kaggle-Pneumothorax-Seg
 ```
 
-### Dataset preparation
-Download the datasets, unzip and put them in `../input` directory. Finally, the structure of the `../input` folder is as follows
+### Prepare Dataset 
+Download SIIM datasets from [here](<https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation/data>) , unzip and put them into `../input` directory.  Structure of the `../input` folder can be like:
 ```
 dicom-images-test
 dicom-images-train
@@ -82,7 +69,7 @@ stage_2_images
 stage_2_train.csv
 train-rle.csv
 ```
-delete some  Non-annotated instances/images
+ Delete some non-annotated instances/images:
 ```bash
 cd dicom-images-test
 rm */*/1.2.276.0.7230010.3.1.4.8323329.6491.1517875198.577052.dcm
@@ -92,9 +79,8 @@ rm */*/1.2.276.0.7230010.3.1.4.8323329.6082.1517875196.407031.dcm
 rm */*/1.2.276.0.7230010.3.1.4.8323329.7020.1517875202.386064.dcm
 ```
 
-put `stage_2_sample_submission.csv` in 'Kaggle-Pneumothorax-Seg' directory
+Put `stage_2_sample_submission.csv` into `Kaggle-Pneumothorax-Seg` directory. Then，evacuate the following instructions to convert  original dcm files to jpg.
 
-Then，convert dcm to jpg
 ```bash
 cd Kaggle-Pneumothorax-Seg 
 python datasets/dcm2jpg.py
@@ -109,7 +95,7 @@ cp train_mask/* train_mask_all/
 cp test_mask/* train_mask_all/
 ```
 
-Creat dataset soft links in the following directories.
+Create soft links of datasets in the following directories:
 ```bash
 cd ../Kaggle-Pneumothorax-Seg/datasets/
 mkdir SIIM_data
@@ -124,37 +110,42 @@ ln -s ../../../input/train_images_all/ train_images_all
 ln -s ../../../input/train_mask_all/ train_mask_all
 ```
 
-### Data analysis
-You can use datasets_statics.py to analyze the distribution of training data
+### Data Analysis
+Before our training, we can use `datasets_statics.py` to analyze the distribution of training data:
 ```bash
 python utils/datasets_statics.py
 ```
 
-### train
-ues one gpu for Stratified K-fold:
+You can get something like:
+
+![](./images/dataset.png)
+
+### Train
+
+Use one gpu for Stratified K-fold:
 ```bash
 CUDA_VISIBLE_DEVICES=0 python train_sfold_stage2.py
 ```
 
-use all gpu for Stratified K-fold:
+Use all gpu for Stratified K-fold:
 ```bash
 python train_sfold_stage2.py
 ```
 
-> The competition is divided into two stages, and if you want to run the code for the first stage, please run `python train_sfold.py`
+> The competition is divided into two stages, so if you want to run the code for the first stage, please run `python train_sfold.py`
 
-Please note that, if you use deeplabv3+ model, please add `drop_last=True` to all DataLoader functions in datasets/siim.py.
+Please note that, if you prepare to use deeplabv3+ model, please add `drop_last=True` to all DataLoader functions in datasets/siim.py.
 
-### How to use Tensorboard
-When you have completed the training of the model, you can use tensorboard to check the training
+### Tensorboard
+After the training of model, we can use tensorboard to analyze the training curves.
 
-#### different event files
+#### Different Event Files
 Tensorboard displays different event files:
 ```
 tensorboard --logdir=name1:/path/to/logs/1,name2:/path/to/logs/2
 ```
 
-for example, when the files in the checkpoints/unet_resnet34 folder are as follows
+For example, when the files in the checkpoints/unet_resnet34 folder are organized as following:
 ```
 ├── 2019-08-27T22-59-29
 │   └── events.out.tfevents.1564306811.zdkit.25995.0
@@ -162,31 +153,31 @@ for example, when the files in the checkpoints/unet_resnet34 folder are as follo
 │   └── events.out.tfevents.1564324685.zdkit.25995.1
 ```
 
-you can run:
+We can run:
 ```
 cd checkpoints/unet_resnet34
 tensorboard --logdir=name1:2019-08-27T22-59-29,name2:2019-08-28T02-01-21
 ```
 
-#### one event file
+#### One Event File
 Tensorboard displays one event file:
 ```
 tensorboard --logdir=/path/to/logs
 ```
 
-for example, when the files in the checkpoints/unet_resnet34 folder are as follows
+For example, when the files in the checkpoints/unet_resnet34 folder are as follows
 ```
 ├── 2019-08-27T22-59-29
 │   └── events.out.tfevents.1564306811.zdkit.25995.0
 ```
 
-you can run:
+You can run:
 ```
 cd checkpoints/unet_resnet34
 tensorboard --logdir=2019-08-27T22-59-29
 ```
 
-### choose threshold
+### Choose Threshold
 ```bash
 python train_sfold_stage2.py --mode=choose_threshold2
 python train_sfold_stage2.py --mode=choose_threshold3
@@ -194,13 +185,13 @@ python train_sfold_stage2.py --mode=choose_threshold3
 
 After running this，the best threshold and the best pixel threshold will be saved in the checkpoints/unet_resnet34 folder
 
-### create predict
+### Create Prediction Csv
 ```bash
 python create_submission.py
 ```
 After running the code, submission.csv will be generated in the root directory, which is the result predicted by the model.
 
-### demo
+### Demo
 When you have trained and selected the threshold, you can use demo_on_val.py to visualize the performance on the validation set
 ```bash
 python demo_on_val.py
@@ -209,7 +200,7 @@ python demo_on_val.py
 It is important to note that this code is only suitable for testing the performance of the fold0, for complete cross-validation,
 there is no handout datasets, so using this code can not measure the generalization ability of the model.
 
-### other
+### Others
 At the end of the first stage of the competition, the competitor released the test dataset labels for the first stage. 
 So we wrote a code to measure the performance of our first stage model (using dice)
 ```bash
@@ -261,3 +252,36 @@ python test_on_stage1.py
 * 0.8648: used more large resolution (516->768), and average ensemble (little)
 * 0.8691: bce+dice+weight (matters a lot/1.21); TTA (matters little); In the first stage, the epoch was reduced from 60 to 40, and the learning rate was reduced to 0 at the 50th epoch. The second stage of learning is adjusted to 5e-6 (matters a lot); Change the data preprocessing mode, the CLAHE probability is changed to 0.4, the vertical flip is removed, the rotation angle is reduced, and the center cutting is added.
 * 0.8741: three stage set: Load the weights of the second phase and train only on masked datasets.
+
+## Tricks tried
+- [x] unet_resnet34(matters a lot)
+- [x] two stage set: two stage batch size(768,1024 big solution matters a lot) and two stages epoch
+- [x] epoch freezes the encoder layer in the first stage
+- [x] epoch gradients accumulate in the second stage
+- [x] data augmentation
+- [x] CLAHE for every picture(matters a little)
+- [x] lr decay - cos annealing(matters a lot)
+- [x] cross validation
+- [x] Stratified K-fold
+- [x] Average each result of cross validation(matters a lot) 
+- [x] stage2 init lr and optimizer
+- [x] weight decay(When equal to 5e-4, the negative effect, val loss decreases and dice oscillates, the highest is 0.77)
+- [x] leak, TTA
+- [x] datasets_statics and choose less than sum
+- [x] adapt to torchvison0.2.0, tensorboard
+- [x] different Learning rates between encoder and decoder in stage2 (not well)
+- [x] freeze BN in stage2 (not well)
+- [x] using lovasz loss in stage2 (this loss can be used to finetune model) (not well)
+- [x] replace upsample (interplotation) with transpose convolution (not well)
+- [x] using octave convolution in unet's decoder (not well)
+- [x] resnet34->resnet50 (a wider model can work better with bigger resolution) (not well)
+- [x] move noise form augmentation (not well)
+- [x] Unet with Attention (not test, the model is too big, so that the batch size is too small)
+- [x] change from 5 flod to 10 fold (not well)
+- [x] hypercolumn unet (not well)
+- [x] Dataset expansion (not well)
+- [x] Data expansion is used only in the 1/3/10 epoch in the first stage (not well)
+- [x] deeplabv3+ (not work)
+- [x] Recitified Adam(Radams) (not work)
+- [x] three stage set: Load the weights of the second phase and train only on masked datasets(matters a lot，from 0.8691 to 0.8741)
+- [x] the dice coefficient is unstale in val set (The code is wrong.WTF)

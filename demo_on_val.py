@@ -5,7 +5,6 @@ import numpy as np
 from PIL import Image
 import pickle
 from tqdm import tqdm_notebook, tqdm
-from utils.evaluation import *
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
 from models.linknet import LinkNet34
 from models.deeplabv3.deeplabv3plus import DeepLabV3Plus
@@ -20,7 +19,7 @@ from models.octave_unet.unet.model import OctaveUnet
 from sklearn.model_selection import KFold, StratifiedKFold
 import matplotlib.pyplot as plt
 import copy
-
+import torch
 
 class Test(object):
     def __init__(self, model_type, image_size, mean, std, t=None):

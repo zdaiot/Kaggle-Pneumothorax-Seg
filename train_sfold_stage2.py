@@ -43,7 +43,7 @@ def main(config):
     else:
         print('Calculate dataset static information.')
         # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
-        dataset_static = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
+        dataset_static = DatasetsStatic(config.dataset_root, 'test_images', 'test_mask', True)
         images_path, masks_path, masks_bool = dataset_static.mask_static_bool()
         with open('dataset_static.pkl', 'wb') as f:
             pickle.dump([images_path, masks_path, masks_bool], f)
@@ -57,21 +57,38 @@ def main(config):
     else:
         print('Calculate dataset with mask static information.')
         # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
-        dataset_static_mask = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
+        dataset_static_mask = DatasetsStatic(config.dataset_root, 'test_images', 'test_mask', True)
         images_path_mask, masks_path_mask, masks_bool_mask = dataset_static_mask.mask_static_bool_stage3()
         with open('dataset_static_mask.pkl', 'wb') as f:
             pickle.dump([images_path_mask, masks_path_mask, masks_bool_mask], f)
 
-    # 抽取原始划分文件
-    print('Extract dataset_static_stage1.pkl')
-    with open('dataset_static_stage1.pkl', 'rb') as f:
+    # 统计各样本是否有Mask
+    if os.path.exists('dataset_static_stage1.pkl'):
+        print('Extract dataset static information form: dataset_static_stage1.pkl.')
+        with open('dataset_static_stage1.pkl', 'rb') as f:
             static_stage1 = pickle.load(f)
-            images_path_stage1, masks_path_stage1, masks_bool_stage1 = static_stage1[0], static_stage1[1], static_stage1[2]        
-
-    print('Extract dataset_static_mask_stage1.pkl')
-    with open('dataset_static_mask_stage1.pkl', 'rb') as f:
-        static_mask_stage1 = pickle.load(f)
-        images_path_mask_stage1, masks_path_mask_stage1, masks_bool_mask_stage1 = static_mask_stage1[0], static_mask_stage1[1], static_mask_stage1[2]
+            images_path_stage1, masks_path_stage1, masks_bool_stage1 = static_stage1[0], static_stage1[1], static_stage1[2]    
+    else:
+        print('Calculate dataset static information.')
+        # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
+        dataset_static_stage1 = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
+        images_path_stage1, masks_path_stage1, masks_bool_stage1 = dataset_static_stage1.mask_static_bool()
+        with open('dataset_static_stage1.pkl', 'wb') as f:
+            pickle.dump([images_path_stage1, masks_path_stage1, masks_bool_stage1], f)
+    
+    # 统计各样本是否有Mask
+    if os.path.exists('dataset_static_mask_stage1.pkl'):
+        print('Extract dataset static information form: dataset_static_mask_stage1.pkl.')
+        with open('dataset_static_mask_stage1.pkl', 'rb') as f:
+            static_mask_stage1 = pickle.load(f)
+            images_path_mask_stage1, masks_path_mask_stage1, masks_bool_mask_stage1 = static_mask_stage1[0], static_mask_stage1[1], static_mask_stage1[2]
+    else:
+        print('Calculate dataset with mask static information.')
+        # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
+        dataset_static_mask_stage1 = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
+        images_path_mask_stage1, masks_path_mask_stage1, masks_bool_mask_stage1 = dataset_static_mask_stage1.mask_static_bool_stage3()
+        with open('dataset_static_mask_stage1.pkl', 'wb') as f:
+            pickle.dump([images_path_mask_stage1, masks_path_mask_stage1, masks_bool_mask_stage1], f)
 
     result = {}
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
