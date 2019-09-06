@@ -1,4 +1,4 @@
-code for [kaggle siim-acr-pneumothorax-segmentation](https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation)
+code for [kaggle siim-acr-pneumothorax-segmentation](https://www.kaggle.com/c/siim-acr-pneumothorax-segmentation), 34th place solution
 
 ## Requirements
 * Pytorch 1.1.0 
@@ -66,49 +66,89 @@ I think this error means that you have two tensorboards installed so the plugin 
 - [x] three stage set: Load the weights of the second phase and train only on masked datasets(matters a lot，from 0.8691 to 0.8741)
 - [x] the dice coefficient is unstale in val set (The code is wrong.WTF)
 
-## Dataset
-Creat dataset soft links in the following directories.
+## How to run
+git clone this project first
+```bash
+git clone https://github.com/XiangqianMa/Kaggle-Pneumothorax-Seg.git
+cd Kaggle-Pneumothorax-Seg
 ```
+
+### Dataset preparation
+Download the datasets, unzip and put them in `../input` directory. Finally, the structure of the `../input` folder is as follows
+```
+dicom-images-test
+dicom-images-train
+stage_2_images
+stage_2_train.csv
+train-rle.csv
+```
+delete some  Non-annotated instances/images
+```bash
+cd dicom-images-test
+rm */*/1.2.276.0.7230010.3.1.4.8323329.6491.1517875198.577052.dcm
+rm */*/1.2.276.0.7230010.3.1.4.8323329.7013.1517875202.343274.dcm
+rm */*/1.2.276.0.7230010.3.1.4.8323329.6370.1517875197.841736.dcm
+rm */*/1.2.276.0.7230010.3.1.4.8323329.6082.1517875196.407031.dcm
+rm */*/1.2.276.0.7230010.3.1.4.8323329.7020.1517875202.386064.dcm
+```
+
+put `stage_2_sample_submission.csv` in 'Kaggle-Pneumothorax-Seg' directory
+
+Then，convert dcm to jpg
+```bash
+cd Kaggle-Pneumothorax-Seg 
+python datasets/dcm2jpg.py
+cd ../input/
+
+mkdir train_images_all
+cp train_images/* train_images_all/
+cp test_images/* train_images_all/
+
+mkdir train_mask_all
+cp train_mask/* train_mask_all/
+cp test_mask/* train_mask_all/
+```
+
+Creat dataset soft links in the following directories.
+```bash
+cd ../Kaggle-Pneumothorax-Seg/datasets/
+mkdir SIIM_data
+cd SIIM_data
 ln -s ../../../input/train_images/ train_images
 ln -s ../../../input/train_mask/ train_mask
 ln -s ../../../input/test_images/ test_images
-ln -s ../../../input/sample_mask sample_mask
-ln -s ../../../input/sample_images/ sample_images
-ln -s ../../../input/train-rle.csv train-rle.csv
-ln -s ../../../input/test_images_stage2 test_images_stage2
+
 ln -s ../../../input/test_mask test_mask
+ln -s ../../../input/test_images_stage2 test_images_stage2
+ln -s ../../../input/train_images_all/ train_images_all
+ln -s ../../../input/train_mask_all/ train_mask_all
 ```
 
-## How to run
-ues one gpu for K-fold:
-```
-CUDA_VISIBLE_DEVICES=0 python main.py
-```
-
-use all gpu for K-fold:
-```
-python main.py
+### Data analysis
+You can use datasets_statics.py to analyze the distribution of training data
+```bash
+python utils/datasets_statics.py
 ```
 
-run all folds for Stratified K-fold
+### train
+ues one gpu for Stratified K-fold:
+```bash
+CUDA_VISIBLE_DEVICES=0 python train_sfold_stage2.py
 ```
-python train_sfold.py
+
+use all gpu for Stratified K-fold:
+```bash
+python train_sfold_stage2.py
 ```
 
-The differences between train_sfold.py and main.py are
-- the former uses Stratified K fold and Fixed lr, while the latter uses K-fold and random lr
+> The competition is divided into two stages, and if you want to run the code for the first stage, please run `python train_sfold.py`
 
-The difference between solver_freeze.py and solver.py are:
-- the former considers freezing the encoding part in the first stage, while the latter does not.
+Please note that, if you use deeplabv3+ model, please add `drop_last=True` to all DataLoader functions in datasets/siim.py.
 
-Please note that
-- solver_freeze.py in both main.py and train_sfold.py are only work for pretrained unet_resnet34.
-- solver.py in both main.py and train_sfold.py are work for all model.
-- if you use deeplabv3+ model, please add drop_last=True to all DataLoader functions in datasets/siim.py.
-- Solver_freeze.py and main.py have stopped updating. There is no guarantee that it will be available.
-  
-## Tensorboard
-### different event files
+### How to use Tensorboard
+When you have completed the training of the model, you can use tensorboard to check the training
+
+#### different event files
 Tensorboard displays different event files:
 ```
 tensorboard --logdir=name1:/path/to/logs/1,name2:/path/to/logs/2
@@ -116,19 +156,19 @@ tensorboard --logdir=name1:/path/to/logs/1,name2:/path/to/logs/2
 
 for example, when the files in the checkpoints/unet_resnet34 folder are as follows
 ```
-├── run1
+├── 2019-08-27T22-59-29
 │   └── events.out.tfevents.1564306811.zdkit.25995.0
-├── run2
+├── 2019-08-28T02-01-21
 │   └── events.out.tfevents.1564324685.zdkit.25995.1
 ```
 
 you can run:
 ```
 cd checkpoints/unet_resnet34
-tensorboard --logdir=name1:run1,name2:run2
+tensorboard --logdir=name1:2019-08-27T22-59-29,name2:2019-08-28T02-01-21
 ```
 
-### one event file
+#### one event file
 Tensorboard displays one event file:
 ```
 tensorboard --logdir=/path/to/logs
@@ -136,14 +176,44 @@ tensorboard --logdir=/path/to/logs
 
 for example, when the files in the checkpoints/unet_resnet34 folder are as follows
 ```
-├── run1
+├── 2019-08-27T22-59-29
 │   └── events.out.tfevents.1564306811.zdkit.25995.0
 ```
 
 you can run:
 ```
 cd checkpoints/unet_resnet34
-tensorboard --logdir=run1
+tensorboard --logdir=2019-08-27T22-59-29
+```
+
+### choose threshold
+```bash
+python train_sfold_stage2.py --mode=choose_threshold2
+python train_sfold_stage2.py --mode=choose_threshold3
+```
+
+After running this，the best threshold and the best pixel threshold will be saved in the checkpoints/unet_resnet34 folder
+
+### create predict
+```bash
+python create_submission.py
+```
+After running the code, submission.csv will be generated in the root directory, which is the result predicted by the model.
+
+### demo
+When you have trained and selected the threshold, you can use demo_on_val.py to visualize the performance on the validation set
+```bash
+python demo_on_val.py
+```
+
+It is important to note that this code is only suitable for testing the performance of the fold0, for complete cross-validation,
+there is no handout datasets, so using this code can not measure the generalization ability of the model.
+
+### other
+At the end of the first stage of the competition, the competitor released the test dataset labels for the first stage. 
+So we wrote a code to measure the performance of our first stage model (using dice)
+```bash
+python test_on_stage1.py
 ```
 
 ## Results
@@ -185,12 +255,6 @@ tensorboard --logdir=run1
 |ResNet34(new)/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6)|bce|0.45|1024|TTA/None|236|0.8570|
 |ResNet34/No accumulation|10/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6)|bce|0.36|768|TTA/None|254|0.8555|
 |ResNet34(New)/No accumulation/three stage|10/6/6|1024|w/|w/ 0.4CLAHE|CosineAnnealingLR(2e-4/5e-6/1e-7)|bce+dice+weight|0.67|2048|TTA/None|206|**0.8741**|
-
-## Experiment record
-|backbone|batch_size|image_size|pretrained|data proprecess|lr|weight_decay|score|
-|--|--|--|--|--|--|--|--|
-|ResNet34/768|10|768|w/|w/ CLAHE|1e-7,1e-5|0.0|0.79|
-|ResNet34/768|10|768|w/|w/ CLAHE|0.0002|0.0|0.8264294|
 
 ## MileStone
 * 0.8446: fixed test code, used resize(1024)

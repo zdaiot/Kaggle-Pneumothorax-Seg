@@ -84,6 +84,5 @@ def cut_img(data_type):
                 count += 1
 
 if __name__ == "__main__":
-    # cut_img_mask('train') # count_no_mask:163501, count_mask:7299
-    # cut_img('test')
-    cut_img_mask('sample')
+    cut_img_mask('train') # count_no_mask:163501, count_mask:7299
+    cut_img('test')

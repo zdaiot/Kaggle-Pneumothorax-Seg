@@ -12,3 +12,5 @@ dataset_static_mask.pkl
 nohup.out
 run_val.sh
 stage_2_sample_submission.csv
+dataset_static_mask_stage1.pkl
+dataset_static_stage1.pkl

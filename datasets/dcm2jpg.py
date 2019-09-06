@@ -37,15 +37,15 @@ def show_dcm_info(dataset, file_path):
 
 
 def draw_img_mask():
-    img = mpimg.imread('input/train_images/1.2.276.0.7230010.3.1.4.8323329.4440.1517875182.865105.jpg')
-    mask = mpimg.imread('./input/train_mask/1.2.276.0.7230010.3.1.4.8323329.307.1517875162.311533.jpg')
+    img = mpimg.imread('../input/train_images/1.2.276.0.7230010.3.1.4.8323329.4440.1517875182.865105.jpg')
+    mask = mpimg.imread('../input/train_mask/1.2.276.0.7230010.3.1.4.8323329.307.1517875162.311533.jpg')
     plt.imshow(img, cmap=plt.cm.bone)
     plt.imshow(mask, alpha=0.3, cmap="Reds")
     plt.show()
 
 
 def test():
-    df = pd.read_csv('./input/train-rle.csv', header=None, index_col=0)
+    df = pd.read_csv('../input/train-rle.csv', header=None, index_col=0)
     Y_train = np.zeros((1024, 1024, 1))
     for x in df.loc['1.2.276.0.7230010.3.1.4.8323329.307.1517875162.311533',1]:
         # plt.imshow(rle2mask(x, 1024, 1024).T)
@@ -56,6 +56,7 @@ def test():
     Y_train = np.where(Y_train>0, 255, 0)
     plt.imshow(Y_train)
     plt.show()
+
 
 def plot_pixel_array(dataset, figsize=(10,10)):
     plt.figure(figsize=figsize)
@@ -118,17 +119,17 @@ def dcm2jpg(dcm_path, save_jpg_path, csv_path=None, save_mask_path=None, show_in
     print('count_no_mask:',count_no_mask)
 
 def run(): 
-    # dcm_path = '../../input/sample images/*.dcm'
-    # save_jpg_path = '../../input/sample_images'
-    # csv_path = '../../input/sample images/train-rle-sample.csv'
-    # save_mask_path = '../../input/sample_mask'
+    # dcm_path = '../input/sample images/*.dcm'
+    # save_jpg_path = '../input/sample_images'
+    # csv_path = '../input/sample images/train-rle-sample.csv'
+    # save_mask_path = '../input/sample_mask'
     # dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
 
-    # dcm_path = '../../input/dicom-images-train/*/*/*.dcm'
-    # save_jpg_path = '../../input/train_images'
-    # csv_path = '../../input/train-rle.csv'
-    # save_mask_path = '../../input/train_mask'
-    # dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
+    dcm_path = '../input/dicom-images-train/*/*/*.dcm'
+    save_jpg_path = '../input/train_images'
+    csv_path = '../input/train-rle.csv'
+    save_mask_path = '../input/train_mask'
+    dcm2jpg(dcm_path, save_jpg_path, csv_path, save_mask_path)
 
     '''there are four pic no be masked, handed del please
     1.2.276.0.7230010.3.1.4.8323329.6491.1517875198.577052
@@ -146,6 +147,7 @@ def run():
     dcm_path = '../input/stage_2_images/*.dcm'
     save_jpg_path = '../input/test_images_stage2'
     dcm2jpg(dcm_path, save_jpg_path)
+
 
 if __name__ == "__main__":
     run()

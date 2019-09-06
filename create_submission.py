@@ -1,13 +1,7 @@
 import os
-from glob import glob
 import numpy as np
-import time
-import torch
-import torchvision
 import copy
 from PIL import Image
-import matplotlib.pyplot as plt
-from torch import optim
 from tqdm import tqdm_notebook, tqdm
 from utils.evaluation import *
 from models.network import U_Net, R2U_Net, AttU_Net, R2AttU_Net
@@ -17,8 +11,6 @@ from backboned_unet import Unet
 import segmentation_models_pytorch as smp
 import pandas as pd
 from utils.mask_functions import rle2mask, mask2rle, mask_to_rle
-import matplotlib.pyplot as plt
-from torch.autograd import Variable
 from torchvision import transforms
 import cv2
 from albumentations import CLAHE
@@ -282,13 +274,13 @@ if __name__ == "__main__":
     with open('checkpoints/'+model_name+'/result_stage3.json', 'r', encoding='utf-8') as json_file:
         config_seg = json.load(json_file)
     
-    n_splits = [0] # 0, 1, 2, 3, 4
+    n_splits = [0, 1, 2, 3, 4] # 0, 1, 2, 3, 4
     thresholds_classify, thresholds_seg, less_than_sum = [0 for x in range(5)], [0 for x in range(5)], [0 for x in range(5)]
     for x in n_splits:
         thresholds_classify[x] = config_cla[str(x)][0]
         less_than_sum[x] = config_cla[str(x)][1]
         thresholds_seg[x] = config_seg[str(x)][0]
-    seg_average_vote = True
+    seg_average_vote = False
     average_threshold = np.sum(np.asarray(thresholds_seg))/len(n_splits)
     test_best_mode = True
     

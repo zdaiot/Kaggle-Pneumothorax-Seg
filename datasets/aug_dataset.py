@@ -164,7 +164,7 @@ class DataAugThread (threading.Thread):
 
 if __name__ == "__main__":
     # 创建所需文件夹，也可以直接使用os.makedirs()创建多级目录
-    save_root = './SIIM_AUG'
+    save_root = './SIIM_data'
     if not os.path.exists(save_root):
         os.mkdir(save_root)
         print("make: {}".format(save_root))

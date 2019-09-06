@@ -12,12 +12,7 @@ from sklearn.model_selection import KFold, StratifiedKFold
 import numpy as np
 import pickle
 from datetime import datetime
-
-FREEZE = False
-if FREEZE:
-    from solver_freeze import Train
-else:
-    from solver import Train
+from solver import Train
 
 
 def main(config):
@@ -67,15 +62,28 @@ def main(config):
         with open('dataset_static_mask.pkl', 'wb') as f:
             pickle.dump([images_path_mask, masks_path_mask, masks_bool_mask], f)
 
+    # 抽取原始划分文件
+    print('Extract dataset_static_stage1.pkl')
+    with open('dataset_static_stage1.pkl', 'rb') as f:
+            static_stage1 = pickle.load(f)
+            images_path_stage1, masks_path_stage1, masks_bool_stage1 = static_stage1[0], static_stage1[1], static_stage1[2]        
+
+    print('Extract dataset_static_mask_stage1.pkl')
+    with open('dataset_static_mask_stage1.pkl', 'rb') as f:
+        static_mask_stage1 = pickle.load(f)
+        images_path_mask_stage1, masks_path_mask_stage1, masks_bool_mask_stage1 = static_mask_stage1[0], static_mask_stage1[1], static_mask_stage1[2]
+
     result = {}
     skf = StratifiedKFold(n_splits=config.n_splits, shuffle=True, random_state=1)
     split1, split2 = skf.split(images_path, masks_bool), skf.split(images_path_mask, masks_bool_mask)
-    for index, ((train_index, val_index), (train_index_mask, val_index_mask)) in enumerate(zip(split1, split2)):
+    split1_stage1, split2_stage1 = skf.split(images_path_stage1, masks_bool_stage1), skf.split(images_path_mask_stage1, masks_bool_mask_stage1)
+    for index, ((train_index, val_index), (train_index_mask, val_index_mask), (train_index_stage1, val_index_stage1), (train_index_mask_stage1, val_index_mask_stage1)) in enumerate(zip(split1, split2, split1_stage1, split2_stage1)):
         # if index > 1:    if index < 2 or index > 3:    if index < 4:
         # 不管是选阈值还是训练，均需要对下面几句话进行调整，来选取测试哪些fold。另外，选阈值的时候，也要对choose_threshold参数更改(是否使用best)
-        if index != 0:
-            print("Fold {} passed".format(index))
-            continue
+        # if index != 0:
+        #     print("Fold {} passed".format(index))
+        #     continue
+        # 比赛第一阶段测试集划分
         train_image = [images_path[x] for x in train_index]
         train_mask = [masks_path[x] for x in train_index]
         val_image = [images_path[x] for x in val_index]
@@ -86,8 +94,19 @@ def main(config):
         val_image_mask = [images_path_mask[x] for x in val_index_mask]
         val_mask_mask = [masks_path_mask[x] for x in val_index_mask]
 
+        # 比赛第一阶段训练集的划分
+        train_image_stage1 = [images_path_stage1[x] for x in train_index_stage1]
+        train_mask_stage1 = [masks_path_stage1[x] for x in train_index_stage1]
+        val_image_stage1 = [images_path_stage1[x] for x in val_index_stage1]
+        val_mask_stage1 = [masks_path_stage1[x] for x in val_index_stage1]
+
+        train_image_mask_stage1 = [images_path_mask_stage1[x] for x in train_index_mask_stage1]
+        train_mask_mask_stage1 = [masks_path_mask_stage1[x] for x in train_index_mask_stage1]
+        val_image_mask_stage1 = [images_path_mask_stage1[x] for x in val_index_mask_stage1]
+        val_mask_mask_stage1 = [masks_path_mask_stage1[x] for x in val_index_mask_stage1]
+
         # 对于第一个阶段方法的处理
-        train_loader, val_loader = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage1,
+        train_loader, val_loader = get_loader(train_image_stage1 + train_image, train_mask_stage1 + train_mask, val_image_stage1 + val_image, val_mask_stage1 + val_mask, config.image_size_stage1,
                                         config.batch_size_stage1, config.num_workers, config.stage1_augmentation_flag, weights_sample=config.weight_sample)
         solver = Train(config, train_loader, val_loader)
         # 针对不同mode，在第一阶段的处理方式
@@ -102,13 +121,14 @@ def main(config):
         del train_loader, val_loader
 
         # 对于第二个阶段的处理方法
-        train_loader_stage2, val_loader_stage2 = get_loader(train_image, train_mask, val_image, val_mask, config.image_size_stage2,
+        train_loader_stage2, val_loader_stage2 = get_loader(train_image_stage1 + train_image, train_mask_stage1 + train_mask, val_image_stage1 + val_image, val_mask_stage1 + val_mask, config.image_size_stage2,
                                     config.batch_size_stage2, config.num_workers, config.stage2_augmentation_flag, weights_sample=config.weight_sample)
-        # 更新类的训练集以及验证集，不更换验证集
-        solver.train_loader = train_loader_stage2
+        # 更新类的训练集以及验证集
+        solver.train_loader, solver.valid_loader = train_loader_stage2, val_loader_stage2
         # 针对不同mode，在第二阶段的处理方式
         if config.mode == 'train' or config.mode == 'train_stage2' or config.mode == 'train_stage23':
             solver.train_stage2(index)
+            # solver.get_dice_onval(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), 0.67, 2048)
         elif config.mode == 'choose_threshold2':
             # solver.pred_mask_count(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), masks_bool, val_index, 0.80, 1280)
             best_thr, best_pixel_thr, score = solver.choose_threshold_grid(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), index)
@@ -120,13 +140,14 @@ def main(config):
 
         # 对于第三个阶段的处理方法
         # 第三阶段和第二阶段使用的图片大小一致，最大batch_size一致
-        train_loader_stage3, val_loader_stage3 = get_loader(train_image_mask, train_mask_mask, val_image_mask, val_mask_mask, config.image_size_stage2,
+        train_loader_stage3, val_loader_stage3 = get_loader(train_image_mask_stage1 + train_image_mask, train_mask_mask_stage1 + train_mask_mask, val_image_mask_stage1 + val_image_mask, val_mask_mask_stage1 + val_mask_mask, config.image_size_stage2,
                                     config.batch_size_stage2, config.num_workers, config.stage3_augmentation_flag, weights_sample=config.weight_sample)
         # 更新类的训练集以及验证集
-        solver.train_loader, solver.valid_loader = train_loader_stage3, val_loader_stage3
+        solver.train_loader, solver.valid_loader = train_loader_stage3, val_loader_stage3        
         # 针对不同mode，在第三阶段的处理方式
         if config.mode == 'train' or config.mode == 'train_stage3' or config.mode == 'train_stage23':
             solver.train_stage3(index)
+            # solver.get_dice_onval(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 3, index)), 0.67, 2048)
         elif config.mode == 'choose_threshold3':
             # solver.pred_mask_count(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 3, index)), masks_bool_mask, val_index_mask, 0.67, 0)
             best_thr, best_pixel_thr, score = solver.choose_threshold(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 3, index)), index)
@@ -192,7 +213,7 @@ if __name__ == '__main__':
         choose_threshold2: 只选第二阶段的阈值
         choose_threshold3: 只选第三阶段的阈值
         '''
-        parser.add_argument('--mode', type=str, default='choose_threshold3', \
+        parser.add_argument('--mode', type=str, default='train', \
             help='train/train_stage1/train_stage2/train_stage3/train_stage23/choose_threshold1/choose_threshold2/choose_threshold3.')
         parser.add_argument('--model_type', type=str, default='unet_resnet34', \
             help='U_Net/R2U_Net/AttU_Net/R2AttU_Net/unet_resnet34/linknet/deeplabv3plus/pspnet_resnet34/unet_se_resnext50_32x4d/unet_densenet121')
@@ -210,8 +231,8 @@ if __name__ == '__main__':
         # dataset 
         parser.add_argument('--model_path', type=str, default='./checkpoints')
         parser.add_argument('--dataset_root', type=str, default='./datasets/SIIM_data')
-        parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images')
-        parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask')
+        parser.add_argument('--train_path', type=str, default='./datasets/SIIM_data/train_images_all')
+        parser.add_argument('--mask_path', type=str, default='./datasets/SIIM_data/train_mask_all')
         parser.add_argument('--weight_sample', type=list, default=0, help='sample weight of class')
 
         config = parser.parse_args()

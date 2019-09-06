@@ -12,12 +12,7 @@ from sklearn.model_selection import KFold, StratifiedKFold
 import numpy as np
 import pickle
 from datetime import datetime
-
-FREEZE = False
-if FREEZE:
-    from solver_freeze import Train
-else:
-    from solver import Train
+from solver import Train
 
 
 def main(config):
@@ -40,9 +35,9 @@ def main(config):
     scores, best_thrs, best_pixel_thrs = [], [], []
 
     # 统计各样本是否有Mask
-    if os.path.exists('dataset_static.pkl'):
-        print('Extract dataset static information form: dataset_static.pkl.')
-        with open('dataset_static.pkl', 'rb') as f:
+    if os.path.exists('dataset_static_stage1.pkl'):
+        print('Extract dataset static information form: dataset_static_stage1.pkl.')
+        with open('dataset_static_stage1.pkl', 'rb') as f:
             static = pickle.load(f)
             images_path, masks_path, masks_bool = static[0], static[1], static[2]
     else:
@@ -50,13 +45,13 @@ def main(config):
         # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
         dataset_static = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
         images_path, masks_path, masks_bool = dataset_static.mask_static_bool()
-        with open('dataset_static.pkl', 'wb') as f:
+        with open('dataset_static_stage1.pkl', 'wb') as f:
             pickle.dump([images_path, masks_path, masks_bool], f)
     
     # 统计各样本是否有Mask
-    if os.path.exists('dataset_static_mask.pkl'):
-        print('Extract dataset static information form: dataset_static_mask.pkl.')
-        with open('dataset_static_mask.pkl', 'rb') as f:
+    if os.path.exists('dataset_static_mask_stage1.pkl'):
+        print('Extract dataset static information form: dataset_static_mask_stage1.pkl.')
+        with open('dataset_static_mask_stage1.pkl', 'rb') as f:
             static_mask = pickle.load(f)
             images_path_mask, masks_path_mask, masks_bool_mask = static_mask[0], static_mask[1], static_mask[2]
     else:
@@ -64,7 +59,7 @@ def main(config):
         # 为了确保每次重新运行，交叉验证每折选取的下标均相同(因为要选阈值),以及交叉验证的种子固定。
         dataset_static_mask = DatasetsStatic(config.dataset_root, 'train_images', 'train_mask', True)
         images_path_mask, masks_path_mask, masks_bool_mask = dataset_static_mask.mask_static_bool_stage3()
-        with open('dataset_static_mask.pkl', 'wb') as f:
+        with open('dataset_static_mask_stage1.pkl', 'wb') as f:
             pickle.dump([images_path_mask, masks_path_mask, masks_bool_mask], f)
 
     result = {}
@@ -108,6 +103,8 @@ def main(config):
         solver.train_loader, solver.valid_loader = train_loader_stage2, val_loader_stage2
         # 针对不同mode，在第二阶段的处理方式
         if config.mode == 'train' or config.mode == 'train_stage2' or config.mode == 'train_stage23':
+            # solver.load_checkpoint(load_optimizer=False)
+            # solver.validation(stage=2)
             solver.train_stage2(index)
         elif config.mode == 'choose_threshold2':
             # solver.pred_mask_count(os.path.join(config.save_path, '%s_%d_%d_best.pth' % (config.model_type, 2, index)), masks_bool, val_index, 0.80, 1280)
@@ -162,12 +159,12 @@ if __name__ == '__main__':
         zdaiot:10,6 z840:12,6 mxq:20,10
         '''
         parser.add_argument('--image_size_stage1', type=int, default=768, help='image size in the first stage')
-        parser.add_argument('--batch_size_stage1', type=int, default=20, help='batch size in the first stage')
+        parser.add_argument('--batch_size_stage1', type=int, default=12, help='batch size in the first stage')
         parser.add_argument('--epoch_stage1', type=int, default=40, help='How many epoch in the first stage')
         parser.add_argument('--epoch_stage1_freeze', type=int, default=0, help='How many epoch freezes the encoder layer in the first stage')
 
         parser.add_argument('--image_size_stage2', type=int, default=1024, help='image size in the second stage')
-        parser.add_argument('--batch_size_stage2', type=int, default=10, help='batch size in the second stage')
+        parser.add_argument('--batch_size_stage2', type=int, default=6, help='batch size in the second stage')
         parser.add_argument('--epoch_stage2', type=int, default=15, help='How many epoch in the second stage')
         parser.add_argument('--epoch_stage2_accumulation', type=int, default=0, help='How many epoch gradients accumulate in the second stage')
         parser.add_argument('--accumulation_steps', type=int, default=10, help='How many steps do you add up to the gradient in the second stage')

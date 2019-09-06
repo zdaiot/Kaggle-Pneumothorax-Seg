@@ -589,6 +589,14 @@ class Train(object):
         return (2. * intersect / union)
 
     def classify_score(self, preds, targs):
+        '''若当前图像中有mask，则为正类，若当前图像中无mask，则为负类。从分类的角度得分当前的准确率
+        
+        Args:
+            preds: 预测出的mask矩阵
+            targs: 真实的mask矩阵
+        
+        Return: 分类准确率
+        '''
         n = preds.shape[0]  # batch size为多少
         preds = preds.view(n, -1)
         targs = targs.view(n, -1)
@@ -600,6 +608,14 @@ class Train(object):
         return score.item()/n
 
     def choose_threshold(self, model_path, index):
+        '''利用线性法搜索当前模型的最优阈值和最优像素阈值；先利用粗略搜索和精细搜索两个过程搜索出最优阈值，然后搜索出最优像素阈值；并保存搜索图
+        
+        Args:
+            model_path: 当前模型权重的位置
+            index: 当前为第几个fold
+        
+        Return: 最优阈值，最优像素阈值，最高得分
+        '''
         self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
         stage = eval(model_path.split('/')[-1].split('_')[2])
         print('Loaded from %s, using choose_threshold!' % model_path)
@@ -683,6 +699,16 @@ class Train(object):
         return float(best_thr), float(best_pixel_thr), float(score)
     
     def pred_mask_count(self, model_path, masks_bool, val_index, best_thr, best_pixel_thr):
+        '''加载模型，根据最优阈值和最优像素阈值，得到在验证集上的分类准确率。适用于训练的第二阶段使用 dice 选完阈值，查看分类准确率
+        Args:
+            model_path: 当前模型的权重路径
+            masks_bool: 全部数据集中的每个是否含有mask
+            val_index: 当前验证集的在全部数据集的下标
+            best_thr: 选出的最优阈值
+            best_pixel_thr: 选出的最优像素阈值
+        
+        Return: None, 打印出有多少个真实情况有多少个正样本，实际预测出了多少个样本。但是不是很严谨，因为这不能代表正确率。
+        '''
         count_true, count_pred = 0,0
         for index1 in val_index:
             if masks_bool[index1]:
@@ -716,6 +742,14 @@ class Train(object):
         print('count_true:{}, count_pred:{}'.format(count_true, count_pred))
 
     def grid_search(self, thrs_big, pixel_thrs):
+        '''利用网格法搜索最优阈值和最优像素阈值
+        
+        Args:
+            thrs_big: 网格法搜索时的一系列阈值
+            pixel_thrs: 网格搜索时的一系列像素阈值
+        
+        Return: 最优阈值，最优像素阈值，最高得分，网络矩阵中每个位置的得分
+        '''
         with torch.no_grad():
             # 先大概选取阈值范围和像素阈值范围
             dices_big = [] # 存放的是二维矩阵，每一行为每一个阈值下所有像素阈值得到的得分
@@ -745,6 +779,14 @@ class Train(object):
         return best_thr, best_pixel_thr, score, dices_big
 
     def choose_threshold_grid(self, model_path, index):
+        '''利用网格法搜索当前模型的最优阈值和最优像素阈值，分为粗略搜索和精细搜索两个过程；并保存热力图
+        
+        Args:
+            model_path: 当前模型权重的位置
+            index: 当前为第几个fold
+        
+        Return: 最优阈值，最优像素阈值，最高得分
+        '''
         self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
         stage = eval(model_path.split('/')[-1].split('_')[2])
         print('Loaded from %s, using choose_threshold_grid!' % model_path)
@@ -779,3 +821,34 @@ class Train(object):
         # plt.show()
         plt.close()
         return float(best_thr), float(best_pixel_thr), float(score)
+
+    def get_dice_onval(self, model_path, best_thr, pixel_thr):
+        '''已经训练好模型，并且选完阈值后。根据当前模型，best_thr, pixel_thr得到在验证集的表现
+        
+        Args:
+            model_path: 要加载的模型路径
+            best_thr: 选出的最优阈值
+            pixel_thr: 选出的最优像素阈值
+        
+        Return: None
+        '''
+        self.unet.module.load_state_dict(torch.load(model_path)['state_dict'])
+        stage = eval(model_path.split('/')[-1].split('_')[2])
+        print('Loaded from %s, using get_dice_onval!' % model_path)
+        self.unet.eval()
+
+        with torch.no_grad():
+            # 选最优像素阈值
+            tmp = []
+            tbar = tqdm.tqdm(self.valid_loader)
+            for i, (images, masks) in enumerate(tbar):
+                # GT : Ground Truth
+                images = images.to(self.device)
+                net_output = torch.sigmoid(self.unet(images))
+                preds = (net_output > best_thr).to(self.device).float()  # 大于阈值的归为1
+                if stage != 3:
+                    preds[preds.view(preds.shape[0], -1).sum(-1) < pixel_thr, ...] = 0.0  # 过滤噪声点
+                tmp.append(self.dice_overall(preds, masks).mean())
+                # tmp.append(self.classify_score(preds, masks))
+            score = sum(tmp) / len(tmp)
+        print('best_thr:{}, best_pixel_thr:{}, score:{}'.format(best_thr, pixel_thr, score))

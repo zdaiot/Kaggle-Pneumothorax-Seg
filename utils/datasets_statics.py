@@ -224,7 +224,7 @@ if __name__ == "__main__":
     # for i in masks_level:
     #     print(i)
 
-    # ds.mask_num_static()
+    ds.mask_num_static()
     # average_num = ds.mask_pixes_average_num()
     # print('average num: %d'%(average_num))
 
