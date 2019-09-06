@@ -253,7 +253,7 @@ python test_on_stage1.py
 * 0.8691: bce+dice+weight (matters a lot/1.21); TTA (matters little); In the first stage, the epoch was reduced from 60 to 40, and the learning rate was reduced to 0 at the 50th epoch. The second stage of learning is adjusted to 5e-6 (matters a lot); Change the data preprocessing mode, the CLAHE probability is changed to 0.4, the vertical flip is removed, the rotation angle is reduced, and the center cutting is added.
 * 0.8741: three stage set: Load the weights of the second phase and train only on masked datasets.
 
-## Tricks tried
+## Tricks Tried
 - [x] unet_resnet34(matters a lot)
 - [x] two stage set: two stage batch size(768,1024 big solution matters a lot) and two stages epoch
 - [x] epoch freezes the encoder layer in the first stage
